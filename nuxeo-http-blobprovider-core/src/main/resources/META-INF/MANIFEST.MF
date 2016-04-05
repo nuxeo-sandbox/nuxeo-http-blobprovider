@@ -1,0 +1,9 @@
+Bundle-ActivationPolicy: lazy
+Bundle-ClassPath: .
+Manifest-Version: 1.0
+Bundle-Vendor: org.nuxeo.http.blobprovider
+Bundle-Version: 1.0.0
+Bundle-Name: nuxeo-http-blobprovider-core
+Bundle-ManifestVersion: 2
+Bundle-SymbolicName: org.nuxeo.http.blobprovider.nuxeo-http-blobprovider-core;singleton=true
+Nuxeo-Component: OSGI-INF/blobprovider-contrib.xml

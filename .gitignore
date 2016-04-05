@@ -1,0 +1,30 @@
+# common ignores
+.classpath
+.project
+.settings
+.idea
+.yo-rc.json
+*.stt
+bin
+pojo-bin
+target
+*~
+*~bak
+*-bak
+*.bak
+*-new
+*.rej
+*.orig
+.DS_Store
+.pydevproject
+*.pyc
+*.iml
+*.ipr
+*.iws
+*.gpd.*
+*cpJar*
+dependency-tree.log
+nashorn_code_cache
+
+# Specific ignores
+aws-test.conf
