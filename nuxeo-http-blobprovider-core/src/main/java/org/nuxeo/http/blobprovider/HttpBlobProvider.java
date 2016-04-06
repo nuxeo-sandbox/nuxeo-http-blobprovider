@@ -12,10 +12,12 @@
  * Lesser General Public License for more details.
  *
  * Contributors:
- *     Florent Guillaume
+ *     Michael Vachette
+ *     Thibaud Arguillere
  */
 package org.nuxeo.http.blobprovider;
 
+import org.apache.commons.lang.StringUtils;
 import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.blob.AbstractBlobProvider;
 import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
@@ -28,7 +30,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Map;
-
 
 public class HttpBlobProvider extends AbstractBlobProvider {
 
@@ -48,6 +49,13 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     @Override
     public InputStream getStream(ManagedBlob blob) throws IOException {
+        
+        /*
+        System.out.println("============================================");
+        System.out.println("getStream()");
+        System.out.println("============================================");
+        */
+        
         String key = blob.getKey();
         // strip prefix
         int colon = key.indexOf(':');
@@ -82,13 +90,24 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         String url = blobInfo.key;
         blobInfo = new BlobInfo(blobInfo); // copy
         blobInfo.key = blobProviderId + ":" + url;
-        if (blobInfo.filename == null) {
+        if (StringUtils.isBlank(blobInfo.filename)) {
             blobInfo.filename = url;
         }
-        if (blobInfo.digest == null) {
+        if (StringUtils.isBlank(blobInfo.digest)) {
             blobInfo.digest = url;
         }
         return new SimpleManagedBlob(blobInfo);
+    }
+    
+    public ManagedBlob createBlobFromUrl(String url, String mimeType) throws IOException {
+        
+        BlobInfo blobInfo = new BlobInfo();
+        
+        // . . .
+        blobInfo.key = url;
+        blobInfo.mimeType = mimeType; //"application/pdf"; // HARD CODED TEMPORARILY
+        
+        return createBlob(blobInfo);
     }
 
 }

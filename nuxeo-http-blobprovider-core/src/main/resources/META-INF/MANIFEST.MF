@@ -6,4 +6,4 @@ Bundle-Version: 1.0.0
 Bundle-Name: nuxeo-http-blobprovider-core
 Bundle-ManifestVersion: 2
 Bundle-SymbolicName: org.nuxeo.http.blobprovider.nuxeo-http-blobprovider-core;singleton=true
-Nuxeo-Component: OSGI-INF/blobprovider-contrib.xml
+Nuxeo-Component: OSGI-INF/blobprovider-contrib.xml,OSGI-INF/operations-contrib.xml
