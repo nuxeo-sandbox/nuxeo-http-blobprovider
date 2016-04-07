@@ -31,6 +31,7 @@ import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.api.CoreSession;
 import org.nuxeo.ecm.core.api.DocumentModel;
 import org.nuxeo.ecm.core.blob.BlobManager;
+import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
 import org.nuxeo.http.blobprovider.HttpBlobProvider;
 import org.nuxeo.runtime.api.Framework;
 
@@ -55,22 +56,41 @@ public class CreateBlobOp {
     @Param(name = "mimeType", required = false)
     String mimeType;
 
+    @Param(name = "fileName", required = false)
+    String fileName;
+
+    @Param(name = "fileSize", required = false)
+    Long fileSize;
+
+    @Param(name = "encoding", required = false)
+    String encoding;
+
+    @Param(name = "digest", required = false)
+    String digest;
+
     @Param(name = "save", required = false)
     boolean save = false;
     
     @OperationMethod
     public Blob run(String url) throws IOException {
+        
+        BlobInfo newInfo = new BlobInfo();
+        newInfo.key = url;
+        newInfo.mimeType = mimeType;
+        newInfo.filename = fileName;
+        newInfo.length = fileSize;
+        newInfo.encoding = encoding;
+        newInfo.digest = digest;
                 
         BlobManager blobManager = Framework.getService(BlobManager.class);
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
-        Blob blob = bp.createBlobFromUrl(url, mimeType);
+        Blob blob = bp.createBlob(newInfo);
         
         return blob;
     }
     
     @OperationMethod
     public DocumentModel run(DocumentModel input) throws IOException {
-        
         String url = (String) input.getPropertyValue(urlXPath);
         Blob blob = run(url);
         

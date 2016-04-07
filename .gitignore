@@ -27,4 +27,4 @@ dependency-tree.log
 nashorn_code_cache
 
 # Specific ignores
-aws-test.conf
+testconf.conf

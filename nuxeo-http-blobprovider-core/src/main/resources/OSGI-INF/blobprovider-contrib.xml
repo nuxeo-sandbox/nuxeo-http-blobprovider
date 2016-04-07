@@ -1,9 +1,18 @@
 <?xml version="1.0"?>
-<component name="org.nuxeo.httpblobprovider.blobmanagerconfig" version="1.0">
-    <extension target="org.nuxeo.ecm.core.blob.BlobManager" point="configuration">
-        <blobprovider name="http">
-            <class>org.nuxeo.http.blobprovider.HttpBlobProvider</class>
-            <property name="preventUserUpdate">true</property>
-        </blobprovider>
-    </extension>
+<component name="org.nuxeo.httpblobprovider.blobmanagerconfig"
+	version="1.0">
+	<extension target="org.nuxeo.ecm.core.blob.BlobManager"
+		point="configuration">
+		<blobprovider name="http">
+			<class>org.nuxeo.http.blobprovider.HttpBlobProvider</class>
+			<property name="preventUserUpdate">true</property>
+
+			<property name="domain">${http.blobprovider.domain:=}</property>
+			<property name="authenticationType">${http.blobprovider.auth.type:=}</property>
+			<property name="login">${http.blobprovider.auth.login:=}</property>
+			<property name="password">${http.blobprovider.auth.password:=}
+			</property>
+
+		</blobprovider>
+	</extension>
 </component>

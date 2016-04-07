@@ -19,7 +19,6 @@ package org.nuxeo.http.blobprovider;
 
 import static org.junit.Assert.*;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.nuxeo.ecm.automation.test.AutomationFeature;
@@ -29,8 +28,8 @@ import org.nuxeo.ecm.core.api.CoreSession;
 import org.nuxeo.ecm.core.api.DocumentModel;
 import org.nuxeo.ecm.core.api.DocumentModelList;
 import org.nuxeo.ecm.core.blob.BlobManager;
-import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
+import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
 import org.nuxeo.ecm.core.event.EventService;
 import org.nuxeo.ecm.core.test.annotations.Granularity;
 import org.nuxeo.ecm.core.test.annotations.RepositoryConfig;
@@ -51,7 +50,7 @@ import java.io.Serializable;
  */
 
 @RunWith(FeaturesRunner.class)
-@Features({AutomationFeature.class})
+@Features({AutomationFeature.class, SimpleFeatureCustom.class})
 @RepositoryConfig(cleanup = Granularity.METHOD)
 @Deploy({ "org.nuxeo.ecm.platform.commandline.executor",
     "org.nuxeo.ecm.platform.video.core",
@@ -69,14 +68,24 @@ public class TestService {
         DocumentModel doc = session.createDocumentModel("/","File","File");
         doc = session.createDocument(doc);
         
+        
         //String URL_TEST = "http://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
         String URL_TEST = "https://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
         String mimeType = "application/pdf";
+        String fileName = "Nuxeo_IDE_documentation.pdf";
         
         BlobManager blobManager = Framework.getService(BlobManager.class);
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
         
-        Blob blob = bp.createBlobFromUrl(URL_TEST, mimeType);
+        BlobInfo blobInfo = new BlobInfo();
+        blobInfo.key = URL_TEST;
+        blobInfo.mimeType = mimeType;
+        blobInfo.filename = fileName;
+        blobInfo.length = 0L;
+        //newInfo.encoding = encoding;
+        //newInfo.digest = digest;
+        
+        Blob blob = bp.createBlob(blobInfo);
         doc.setPropertyValue("file:content", (Serializable) blob);
         doc = session.saveDocument(doc);
         
