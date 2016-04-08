@@ -39,22 +39,52 @@ import org.nuxeo.runtime.test.runner.SimpleFeature;
 public class SimpleFeatureCustom extends SimpleFeature {
 
     public static final String TEST_CONF_FILE = "testconf.conf";
-    
+
     public static final String CONF_KEY_HAS_LOCAL_CONF = "TEST_HTTP_BLOBPROVIDER_HAS_LOCALCONF";
+
+    // <-------------------- These values are expected when testing authentication -------------------->
+    public static final String CONF_KEY_AUTH_FILE_URL = "AUTH_FILE_URL";
+
+    public static final String CONF_KEY_AUTH_FILE_MIME_TYPE = "AUTH_FILE_MIME_TYPE";
+
+    public static final String CONF_KEY_AUTH_FILE_FILE_NAME = "AUTH_FILE_FILE_NAME";
+
+    public static final String CONF_KEY_AUTH_FILE_SIZE = "AUTH_FILE_SIZE";
+
+    public static final String AUTH_FILE_FULL_TEXT_SEARCH = "AUTH_FILE_FULL_TEXT_SEARCH";
+
+    // These are the properties that are tested. You must declare/use the same in your testconf.conf file
+    protected static boolean localTestConfigurationOk = false;
+
+    protected static Properties localProperties = null;
+
+    public static String getLocalProperty(String key) {
+
+        if (localProperties != null) {
+            return localProperties.getProperty(key);
+        }
+
+        return null;
+    }
+
+    public static boolean hasLocalTestConfiguration() {
+        return localTestConfigurationOk;
+    }
 
     @Override
     public void initialize(FeaturesRunner runner) throws Exception {
-        
-        Properties localProps = null;
+
+        localProperties = null;
         File file = null;
         FileInputStream fileInput = null;
         try {
             file = FileUtils.getResourceFileFromContext(TEST_CONF_FILE);
             fileInput = new FileInputStream(file);
-            localProps = new Properties();
-            localProps.load(fileInput);
+            localProperties = new Properties();
+            localProperties.load(fileInput);
+
         } catch (Exception e) {
-            localProps = null;
+            localProperties = null;
         } finally {
             if (fileInput != null) {
                 try {
@@ -65,22 +95,23 @@ public class SimpleFeatureCustom extends SimpleFeature {
                 fileInput = null;
             }
         }
-        
+
         Properties p = System.getProperties();
-        p.put(CONF_KEY_HAS_LOCAL_CONF, localProps != null);
-        if(localProps != null) {
-            p.put(HttpBlobProvider.KEY_DOMAIN, localProps.get(HttpBlobProvider.KEY_DOMAIN));
-            p.put(HttpBlobProvider.KEY_AUTHENTICATION_TYPE, localProps.get(HttpBlobProvider.KEY_AUTHENTICATION_TYPE));
-            p.put(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN, localProps.get(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN));
-            p.put(HttpBlobProvider.KEY_AUTHENTICATION_PWD, localProps.get(HttpBlobProvider.KEY_AUTHENTICATION_PWD));
+        localTestConfigurationOk = localProperties != null;
+        if (localTestConfigurationOk) {
+            p.put(HttpBlobProvider.KEY_DOMAIN, localProperties.get(HttpBlobProvider.KEY_DOMAIN));
+            p.put(HttpBlobProvider.KEY_AUTHENTICATION_TYPE,
+                    localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_TYPE));
+            p.put(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN,
+                    localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN));
+            p.put(HttpBlobProvider.KEY_AUTHENTICATION_PWD, localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_PWD));
         }
     }
-    
+
     @Override
     public void stop(FeaturesRunner runner) throws Exception {
-        
+
         Properties p = System.getProperties();
-        p.remove(CONF_KEY_HAS_LOCAL_CONF);
         p.remove(HttpBlobProvider.KEY_DOMAIN);
         p.remove(HttpBlobProvider.KEY_AUTHENTICATION_TYPE);
         p.remove(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN);

@@ -47,6 +47,9 @@ public class CreateBlobOp {
     @Context
     protected CoreSession session;
 
+    @Param(name = "provider", required = false, values = { HttpBlobProvider.DEFAULT_PROVIDER })
+    String provider;
+
     @Param(name = "urlXPath", required = true)
     String urlXPath;
 
@@ -81,9 +84,13 @@ public class CreateBlobOp {
         newInfo.length = fileSize;
         newInfo.encoding = encoding;
         newInfo.digest = digest;
+        
+        if(StringUtils.isBlank(provider)) {
+            provider = HttpBlobProvider.DEFAULT_PROVIDER;
+        }
                 
         BlobManager blobManager = Framework.getService(BlobManager.class);
-        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(provider);
         Blob blob = bp.createBlob(newInfo);
         
         return blob;

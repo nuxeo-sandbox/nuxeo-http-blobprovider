@@ -19,6 +19,8 @@ package org.nuxeo.http.blobprovider;
 
 import static org.junit.Assert.*;
 
+import org.apache.commons.lang.StringUtils;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.nuxeo.ecm.automation.test.AutomationFeature;
@@ -45,67 +47,69 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.Serializable;
 
-/**
- * Created by Michaël on 28/05/2015.
- */
 
 @RunWith(FeaturesRunner.class)
-@Features({AutomationFeature.class, SimpleFeatureCustom.class})
+@Features({ AutomationFeature.class, SimpleFeatureCustom.class })
 @RepositoryConfig(cleanup = Granularity.METHOD)
-@Deploy({ "org.nuxeo.ecm.platform.commandline.executor",
-    "org.nuxeo.ecm.platform.video.core",
-    "org.nuxeo.ecm.platform.video.convert",
-    "org.nuxeo.ecm.platform.picture.core",
-    "org.nuxeo.http.blobprovider.nuxeo-http-blobprovider-core"})
+@Deploy({ "org.nuxeo.ecm.platform.commandline.executor", "org.nuxeo.ecm.platform.video.core",
+        "org.nuxeo.ecm.platform.video.convert", "org.nuxeo.ecm.platform.picture.core",
+        "org.nuxeo.http.blobprovider.nuxeo-http-blobprovider-core" })
 public class TestService {
 
     @Inject
     CoreSession session;
 
-    //@Ignore
     @Test
-    public void testHttpBlobProvider() throws Exception {
-        DocumentModel doc = session.createDocumentModel("/","File","File");
-        doc = session.createDocument(doc);
-        
-        
-        //String URL_TEST = "http://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
+    public void testHttpBlobProvider_noAuthentication() throws Exception {
+
+        // Using such distant file maybe is not the best idea, because who knows, maybe it will be removed in the
+        // future, etc.
+        // String URL_TEST = "http://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
         String URL_TEST = "https://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
         String mimeType = "application/pdf";
         String fileName = "Nuxeo_IDE_documentation.pdf";
-        
+
+        // Instantiate the blobProvider now
         BlobManager blobManager = Framework.getService(BlobManager.class);
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
         
+        // So we just quickly test if the URL really exist
+        boolean canTestFile = bp.urlLooksValid(URL_TEST);
+        Assume.assumeTrue("Remote file not available, cannot run the test", canTestFile);
+
+        DocumentModel doc = session.createDocumentModel("/", "File-NoAuth", "File");
+        doc = session.createDocument(doc);
+
         BlobInfo blobInfo = new BlobInfo();
         blobInfo.key = URL_TEST;
         blobInfo.mimeType = mimeType;
         blobInfo.filename = fileName;
         blobInfo.length = 0L;
-        //newInfo.encoding = encoding;
-        //newInfo.digest = digest;
-        
+        // newInfo.encoding = encoding;
+        // newInfo.digest = digest;
+
         Blob blob = bp.createBlob(blobInfo);
         doc.setPropertyValue("file:content", (Serializable) blob);
         doc = session.saveDocument(doc);
-        
+
         // Make sure it can be found later
         TransactionHelper.commitOrRollbackTransaction();
         TransactionHelper.startTransaction();
-        
+
         // Wait for async. worker (full text index) to finish their job
         Thread.sleep(500);
         Framework.getService(EventService.class).waitForAsyncCompletion();
-        
+
         String nxql = "SELECT * FROM Document WHERE ecm:fulltext = 'installing nuxeo ide'";
         DocumentModelList docs = session.query(nxql);
         assertEquals(1, docs.size());
-        
+
         doc = docs.get(0);
+
         // ===================== Test we can get the blob
         blob = (Blob) doc.getPropertyValue("file:content");
         InputStream is = bp.getStream((ManagedBlob) blob);
-        
+
         Blob tmp = Blobs.createBlobWithExtension(".pdf");
         FileOutputStream outputStream = new FileOutputStream(tmp.getFile());
         int bytesRead = -1;
@@ -115,11 +119,78 @@ public class TestService {
         }
         outputStream.close();
         is.close();
-        
+
         assertTrue(tmp.getFile().exists());
         // Should test more...
+    }
+    
+    protected boolean areNotBlanks(String...values) {
         
-        String z = "stop";
+        for(String str : values) {
+            if(StringUtils.isBlank(str)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /*
+     * Authentication info and url to test are in the local testconf.conf file. If this file does not exist, the test is
+     * ignored. It is our SimpleFeatureCustom class that load it
+     */
+    @Test
+    public void testHttpBlobProvider_withAuthentication() throws Exception {
+
+        Assume.assumeTrue("No local configuration file, no test", SimpleFeatureCustom.hasLocalTestConfiguration());
+        
+        String url = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_URL);
+        String mimeType = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_MIME_TYPE);
+        String fileName = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_FILE_NAME);
+        String fullTextTSearch = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.AUTH_FILE_FULL_TEXT_SEARCH);
+        String fileSizeStr = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_SIZE);
+        long fileSize = 0;
+        try {
+            fileSize = Long.parseLong(fileSizeStr);
+        } catch (Exception e) {
+            fileSize = 0;
+        }
+        
+        boolean hasValues = areNotBlanks(url, mimeType, fileName, fileSizeStr);
+        Assume.assumeTrue("Parameters not set for authentication, no test", hasValues);
+
+        // Instantiate the blobProvider now
+        BlobManager blobManager = Framework.getService(BlobManager.class);
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
+        
+        boolean canTestFile = bp.urlLooksValid(url);
+        Assume.assumeTrue("Remote file not available, cannot run the test", canTestFile);
+
+        DocumentModel doc = session.createDocumentModel("/", "File-Auth", "File");
+        doc = session.createDocument(doc);
+
+        BlobInfo blobInfo = new BlobInfo();
+        blobInfo.key = url;
+        blobInfo.mimeType = mimeType;
+        blobInfo.filename = fileName;
+        blobInfo.length = fileSize;Blob blob = bp.createBlob(blobInfo);
+        doc.setPropertyValue("file:content", (Serializable) blob);
+        doc = session.saveDocument(doc);
+
+        // Make sure it can be found later
+        TransactionHelper.commitOrRollbackTransaction();
+        TransactionHelper.startTransaction();
+
+        // Wait for async. worker (full text index) to finish their job
+        Thread.sleep(500);
+        Framework.getService(EventService.class).waitForAsyncCompletion();
+
+        String nxql = "SELECT * FROM Document WHERE ecm:fulltext = '" + fullTextTSearch + "'";
+        DocumentModelList docs = session.query(nxql);
+        assertEquals(1, docs.size());
+
+        doc = docs.get(0);
+        
     }
 
 }

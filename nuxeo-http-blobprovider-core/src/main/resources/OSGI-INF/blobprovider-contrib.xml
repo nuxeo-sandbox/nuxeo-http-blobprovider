@@ -10,8 +10,9 @@
 			<property name="domain">${http.blobprovider.domain:=}</property>
 			<property name="authenticationType">${http.blobprovider.auth.type:=}</property>
 			<property name="login">${http.blobprovider.auth.login:=}</property>
-			<property name="password">${http.blobprovider.auth.password:=}
-			</property>
+			<property name="password">${http.blobprovider.auth.password:=}</property>
+			<!-- Extra headers must be passed as a JSON array of {key, value} objects -->
+			<!--  Example: [{key: "Accept", value: "*/*"}, {key: "MyHeader", value: "Something,SomethingElse"}, {key:"OtherOne", value: "And here it is"}] -->
 
 		</blobprovider>
 	</extension>
