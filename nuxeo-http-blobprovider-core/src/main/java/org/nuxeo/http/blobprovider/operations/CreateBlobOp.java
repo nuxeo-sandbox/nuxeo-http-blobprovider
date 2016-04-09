@@ -56,10 +56,10 @@ public class CreateBlobOp {
     @Param(name = "blobXPath", required = false, values = { "file:content" } )
     String blobXPath;
 
-    @Param(name = "mimeType", required = false)
+    @Param(name = "mimeType", required = true)
     String mimeType;
 
-    @Param(name = "fileName", required = false)
+    @Param(name = "fileName", required = true)
     String fileName;
 
     @Param(name = "fileSize", required = false)
