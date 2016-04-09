@@ -141,6 +141,12 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     protected HashMap<String, String> moreHeaders;
 
+    // <============================================================================>
+    // <============================ NON PUBLIC METHODS ============================>
+    // <============================================================================>
+    /*
+     * Centralize handling of the key, that mixes the blobprovider Id and the URL
+     */
     protected String extractUrl(ManagedBlob blob) {
 
         String key = blob.getKey();
@@ -158,7 +164,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
      * example.We also realign values to get rid of case-sensitive comparison errors and be cool with the users of the
      * extension point ;-)
      */
-    protected void setupProperties() throws JSONException {
+    protected void setupFromProperties() throws JSONException {
 
         // <-------------------- Load from the configuration -------------------->
         authenticationType = properties.get(PROPERTY_AUTHENTICATION_TYPE);
@@ -202,14 +208,51 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     }
 
+    /*
+     * Just a centralization of adding the headers if needed.
+     */
+    protected void addHeaders(HttpURLConnection connection, String urlStr) {
+
+        // No authentication type or not the original domain => Assume the url does not require authentication.
+        // Else => authentication
+        if (StringUtils.isNotBlank(origin) && urlStr.toLowerCase().startsWith(origin)) {
+
+            switch (authenticationType) {
+            case AUTH_BASIC:
+                connection.setRequestProperty("Authorization", basicAuthentication);
+                break;
+
+            // . . . Other cases . . .
+            }
+        }
+
+        if (moreHeaders.size() > 0) {
+            for (Entry<String, String> entry : moreHeaders.entrySet()) {
+                connection.setRequestProperty(entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+    protected boolean isBasicAuthentication() {
+        return StringUtils.isNotBlank(authenticationType) && authenticationType.equals(AUTH_BASIC);
+    }
+
+    protected boolean isNoAuthentication() {
+        return StringUtils.isBlank(authenticationType) || authenticationType.equals(AUTH_NONE);
+    }
+
+    // <============================================================================>
+    // <============================== PUBLIC METHODS ==============================>
+    // <============================================================================>
+
     @Override
     public void initialize(String blobProviderId, Map<String, String> properties) throws IOException {
         super.initialize(blobProviderId, properties);
 
         try {
-            setupProperties();
+            setupFromProperties();
         } catch (JSONException e) {
-            throw new IOException("Failed to load extar headers from the configuration", e);
+            throw new IOException("Failed to load extra headers from the configuration", e);
         }
     }
 
@@ -252,12 +295,12 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     }
 
     /**
-     * Downloads the remote data, return a temp. blob, with ".tmp" as file extension
+     * Downloads the remote data, returns a temp. blob, with ".tmp" as file extension
      * <p>
      * (used by unit tests so far)
      * 
      * @param blob
-     * @return
+     * @return the downloaded blob
      * @throws IOException
      * @since 8.1
      */
@@ -292,11 +335,17 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         return result;
     }
 
+    /**
+     * This class does no support user updates, whatever the value of the "preventUserUpdate" property.
+     */
     @Override
     public boolean supportsUserUpdate() {
-        return supportsUserUpdateDefaultFalse();
+        return false; // supportsUserUpdateDefaultFalse();
     }
 
+    /**
+     * This class does not support writing a blob and always throws an exception
+     */
     @Override
     public String writeBlob(Blob blob, Document doc) throws IOException {
         throw new UnsupportedOperationException("Writing a blob is not supported");
@@ -348,6 +397,13 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         return new SimpleManagedBlob(newInfo);
     }
 
+    /**
+     * Tests the URL (stored in the blob key) using a HEAD http verb, and adding authentication if needed.
+     * 
+     * @param blob
+     * @return true if the URL can be reached with no error
+     * @since 8.1
+     */
     public boolean urlLooksValid(ManagedBlob blob) {
 
         String urlStr = extractUrl(blob);
@@ -355,6 +411,13 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         return urlLooksValid(urlStr);
     }
 
+    /**
+     * Tests the URL using a HEAD http verb, and adding authentication if needed.
+     * 
+     * @param urlStr
+     * @return true if the URL can be reached with no error
+     * @since 8.1
+     */
     public boolean urlLooksValid(String urlStr) {
 
         boolean looksOk = false;
@@ -368,44 +431,11 @@ public class HttpBlobProvider extends AbstractBlobProvider {
             int responseCode = huc.getResponseCode();
             looksOk = responseCode == HttpURLConnection.HTTP_OK;
 
-        } catch (Exception e) {
+        } catch (Exception e) { // Whatever the error, we fail. No need to be granular here.
             looksOk = false;
         }
 
         return looksOk;
-    }
-
-    /*
-     * Just a centralization of adding the headers if needed.
-     */
-    protected void addHeaders(HttpURLConnection connection, String urlStr) {
-
-        // No authentication type or not the original domain => Assume the url does not require authentication.
-        // Else => authentication
-        if (StringUtils.isNotBlank(origin) && urlStr.toLowerCase().startsWith(origin)) {
-
-            switch (authenticationType) {
-            case AUTH_BASIC:
-                connection.setRequestProperty("Authorization", basicAuthentication);
-                break;
-
-            // . . . Other cases . . .
-            }
-        }
-
-        if (moreHeaders.size() > 0) {
-            for (Entry<String, String> entry : moreHeaders.entrySet()) {
-                connection.setRequestProperty(entry.getKey(), entry.getValue());
-            }
-        }
-    }
-
-    protected boolean isBasicAuthentication() {
-        return StringUtils.isNotBlank(authenticationType) && authenticationType.equals(AUTH_BASIC);
-    }
-
-    protected boolean isNoAuthentication() {
-        return StringUtils.isBlank(authenticationType) || authenticationType.equals(AUTH_NONE);
     }
 
 }

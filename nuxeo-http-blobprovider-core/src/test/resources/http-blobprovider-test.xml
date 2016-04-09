@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<component name="org.nuxeo.httpblobprovider.blobmanagerconfig.test"
+	version="1.0">
+	<extension target="org.nuxeo.ecm.core.blob.BlobManager"
+		point="configuration">
+		<!-- "na" stands for "No Authentication" -->
+		<blobprovider name="http-na">
+			<class>org.nuxeo.http.blobprovider.HttpBlobProvider</class>
+			<property name="preventUserUpdate">true</property>
+
+			<!-- So basically, no origin => all and every URL accepted (with no authentication) -->
+			<property name="origin"></property>
+			
+			<!-- We don't use any of the other properties, so we don't use these -->
+			<!-- (we could also just not have the properties) -->
+			<property name="authenticationType"></property>
+			<property name="login"></property>
+			<property name="password"></property>
+			<property name="moreHeadersJson"></property>
+			
+		</blobprovider>
+	</extension>
+</component>

@@ -5,6 +5,8 @@
 		point="configuration">
 		<blobprovider name="http">
 			<class>org.nuxeo.http.blobprovider.HttpBlobProvider</class>
+			<!-- Notice that whatever the value here, as of today, the implementaiton 
+				does not support writing to the distant server -->
 			<property name="preventUserUpdate">true</property>
 
 			<!-- origin must contain the protocol: http://my.wite.com for example -->

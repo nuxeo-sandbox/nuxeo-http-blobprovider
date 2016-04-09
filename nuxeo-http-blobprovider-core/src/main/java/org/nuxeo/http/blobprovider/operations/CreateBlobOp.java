@@ -50,7 +50,7 @@ public class CreateBlobOp {
     @Param(name = "provider", required = false, values = { HttpBlobProvider.DEFAULT_PROVIDER })
     String provider;
 
-    @Param(name = "urlXPath", required = true)
+    @Param(name = "urlXPath", required = false)
     String urlXPath;
 
     @Param(name = "blobXPath", required = false, values = { "file:content" } )

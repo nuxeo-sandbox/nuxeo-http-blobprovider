@@ -23,6 +23,9 @@ import org.apache.commons.lang.StringUtils;
 import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.nuxeo.ecm.automation.AutomationService;
+import org.nuxeo.ecm.automation.OperationChain;
+import org.nuxeo.ecm.automation.OperationContext;
 import org.nuxeo.ecm.automation.test.AutomationFeature;
 import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.api.CoreSession;
@@ -34,10 +37,12 @@ import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
 import org.nuxeo.ecm.core.event.EventService;
 import org.nuxeo.ecm.core.test.annotations.Granularity;
 import org.nuxeo.ecm.core.test.annotations.RepositoryConfig;
+import org.nuxeo.http.blobprovider.operations.CreateBlobOp;
 import org.nuxeo.runtime.api.Framework;
 import org.nuxeo.runtime.test.runner.Deploy;
 import org.nuxeo.runtime.test.runner.Features;
 import org.nuxeo.runtime.test.runner.FeaturesRunner;
+import org.nuxeo.runtime.test.runner.LocalDeploy;
 import org.nuxeo.runtime.transaction.TransactionHelper;
 
 import javax.inject.Inject;
@@ -51,31 +56,95 @@ import java.io.Serializable;
 @Deploy({ "org.nuxeo.ecm.platform.commandline.executor", "org.nuxeo.ecm.platform.video.core",
         "org.nuxeo.ecm.platform.video.convert", "org.nuxeo.ecm.platform.picture.core",
         "org.nuxeo.http.blobprovider.nuxeo-http-blobprovider-core" })
+@LocalDeploy({ "nuxeo-http-blobprovider-test:http-blobprovider-test.xml" })
 public class TestService {
+
+    // See test/resources/http-blobprovider-test.xml
+    // It allows getting file from any URL, with no authentication.
+    public static final String OTHER_PROVIDER = "http-na";
+
+    // Checking such distant file may not be reliable (file may move etc.
+    // We check the URL and Assume.assumeTrue() that it can be reached.
+    public static final String FILE_NO_AUTH_URL = "https://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
+
+    public static final String FILE_NO_AUTH_MIMETYPE = "application/pdf";
+
+    public static final String FILE_NO_AUTH_FILENAME = "Nuxeo_IDE_documentation.pdf";
+
+    public static final String FILE_NO_AUTH_FULLTEXT_TO_SEARCH = "installing nuxeo ide";
 
     @Inject
     CoreSession session;
 
-    @Test
-    public void testHttpBlobProvider_noAuthentication() throws Exception {
+    @Inject
+    AutomationService automationService;
 
-        // Using such distant file maybe is not the best idea, because who knows, maybe it will be removed in the
-        // future, etc.
-        // String URL_TEST = "http://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
-        String URL_TEST = "https://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
-        String mimeType = "application/pdf";
-        String fileName = "Nuxeo_IDE_documentation.pdf";
+    /*
+     * Grouping test code
+     */
+    protected void createDocumentAndTest(HttpBlobProvider blopProvider, String nameInPath, String docType, String url,
+            String mimeType, String fileName, Long fileSize, String fullTextToSearch) throws Exception {
+        
+        if(blopProvider == null) {
+            blopProvider = getProvider(null);
+        }
 
-        // Instantiate the blobProvider now
+        // <-------------------- Test creation and search (full text was extracted) -------------------->
+        DocumentModel doc = session.createDocumentModel("/", nameInPath, docType);
+        doc = session.createDocument(doc);
+
+        BlobInfo blobInfo = new BlobInfo();
+        blobInfo.key = url;
+        blobInfo.mimeType = mimeType;
+        blobInfo.filename = fileName;
+        blobInfo.length = fileSize;
+        Blob blob = blopProvider.createBlob(blobInfo);
+        doc.setPropertyValue("file:content", (Serializable) blob);
+        doc = session.saveDocument(doc);
+
+        commitWaitAndTest(blopProvider, doc, fileSize, fullTextToSearch);
+
+    }
+
+    protected void commitWaitAndTest(HttpBlobProvider blopProvider, DocumentModel doc, Long fileSize,
+            String fullTextToSearch) throws Exception {
+        
+        if(blopProvider == null) {
+            blopProvider = getProvider(null);
+        }
+
+        // Make sure it can be found later
+        TransactionHelper.commitOrRollbackTransaction();
+        TransactionHelper.startTransaction();
+
+        // Wait for async. worker (full text index) to finish their job
+        Thread.sleep(500);
+        Framework.getService(EventService.class).waitForAsyncCompletion();
+
+        String nxql = "SELECT * FROM Document WHERE ecm:fulltext = '" + fullTextToSearch + "'";
+        DocumentModelList docs = session.query(nxql);
+        assertEquals(1, docs.size());
+
+        doc = docs.get(0);
+        // <-------------------- Test download and check file size -------------------->
+        // If we are here, it is very likely downloading worked since Nuxeo could extract the full text from it
+        Blob blob = (Blob) doc.getPropertyValue("file:content");
+        Blob downloaded = blopProvider.downloadFile((ManagedBlob) blob);
+        assertNotNull(downloaded);
+        File f = downloaded.getFile();
+        assertTrue(f.exists());
+        if (fileSize > 0) {
+            assertEquals(fileSize.longValue(), f.length());
+        }
+    }
+    
+    protected HttpBlobProvider getProvider(String name) {
+
         BlobManager blobManager = Framework.getService(BlobManager.class);
-        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
-
-        // So we just quickly test if the URL really exist
-        boolean canTestFile = bp.urlLooksValid(URL_TEST);
-        Assume.assumeTrue("Remote file not available, cannot run the test", canTestFile);
-
-        createDocumentAndTest(bp, "File-Auth", "File", URL_TEST, mimeType, fileName, 0L, "installing nuxeo ide");
-
+        if (name == null) {
+            name = "http";
+        }
+        return (HttpBlobProvider) blobManager.getBlobProvider(name);
     }
 
     protected boolean areNotBlanks(String... values) {
@@ -87,6 +156,23 @@ public class TestService {
         }
 
         return true;
+    }
+
+    @Test
+    public void testHttpBlobProvider_noAuthentication() throws Exception {
+
+        // Instantiate the blobProvider now
+        BlobManager blobManager = Framework.getService(BlobManager.class);
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
+        assertNotNull(bp);
+
+        // So we just quickly test if the URL really exist
+        boolean canTestFile = bp.urlLooksValid(FILE_NO_AUTH_URL);
+        Assume.assumeTrue("Remote file not available, cannot run the test", canTestFile);
+
+        createDocumentAndTest(bp, "File-NoAuth", "File", FILE_NO_AUTH_URL, FILE_NO_AUTH_MIMETYPE,
+                FILE_NO_AUTH_FILENAME, 0L, FILE_NO_AUTH_FULLTEXT_TO_SEARCH);
+
     }
 
     /*
@@ -116,6 +202,7 @@ public class TestService {
         // Instantiate the blobProvider now
         BlobManager blobManager = Framework.getService(BlobManager.class);
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
+        assertNotNull(bp);
 
         boolean canTestFile = bp.urlLooksValid(url);
         Assume.assumeTrue("Remote file not available, cannot run the test", canTestFile);
@@ -124,47 +211,57 @@ public class TestService {
 
     }
 
-    /*
-     * Grouping test code
-     */
-    protected void createDocumentAndTest(HttpBlobProvider blopProvider, String nameInPath, String docType, String url,
-            String mimeType, String fileName, Long fileSize, String fullTextToSearch) throws Exception {
+    @Test
+    public void testOtherProvider() throws Exception {
 
-        // <-------------------- Test creation and search (full text was extracted) -------------------->
-        DocumentModel doc = session.createDocumentModel("/", nameInPath, docType);
+        // Instantiate the blobProvider now
+        BlobManager blobManager = Framework.getService(BlobManager.class);
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(OTHER_PROVIDER);
+        assertNotNull(bp);
+        // Check we really have our provider
+        // Our xml contribution declare the parameters, let them ""
+        assertEquals(OTHER_PROVIDER, bp.blobProviderId);
+        assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_ORIGIN));
+        assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_AUTHENTICATION_TYPE));
+        assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_LOGIN));
+        assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_PWD));
+        assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_MORE_HEADERS));
+
+        // So we just quickly test if the URL really exist
+        boolean canTestFile = bp.urlLooksValid(FILE_NO_AUTH_URL);
+        Assume.assumeTrue("Remote file not available, cannot run the test", canTestFile);
+
+        createDocumentAndTest(bp, "File-NoAuth", "File", FILE_NO_AUTH_URL, FILE_NO_AUTH_MIMETYPE,
+                FILE_NO_AUTH_FILENAME, 0L, FILE_NO_AUTH_FULLTEXT_TO_SEARCH);
+
+    }
+
+    @Test
+    public void testOperation_noAuth() throws Exception {
+
+        OperationChain chain;
+        OperationContext ctx = new OperationContext(session);
+
+        DocumentModel doc = session.createDocumentModel("/", "withOp-1", "File");
+        doc.setPropertyValue("dc:description", FILE_NO_AUTH_URL);
         doc = session.createDocument(doc);
 
-        BlobInfo blobInfo = new BlobInfo();
-        blobInfo.key = url;
-        blobInfo.mimeType = mimeType;
-        blobInfo.filename = fileName;
-        blobInfo.length = fileSize;
-        Blob blob = blopProvider.createBlob(blobInfo);
-        doc.setPropertyValue("file:content", (Serializable) blob);
-        doc = session.saveDocument(doc);
+        ctx.setInput(doc);
+        chain = new OperationChain("createBlob-1");
+        chain.add(CreateBlobOp.ID)
+             .set("urlXPath", "dc:description")
+             .set("mimeType", FILE_NO_AUTH_MIMETYPE)
+             .set("fileName", FILE_NO_AUTH_FILENAME)
+             .set("save", true);
+        DocumentModel result = (DocumentModel) automationService.run(ctx, chain);
+        assertNotNull(result);
+        
+        Blob b = (Blob) doc.getPropertyValue("file:content");
+        assertNotNull(b);
+        assertEquals(FILE_NO_AUTH_MIMETYPE, b.getMimeType());
+        assertEquals(FILE_NO_AUTH_FILENAME, b.getFilename());
 
-        // Make sure it can be found later
-        TransactionHelper.commitOrRollbackTransaction();
-        TransactionHelper.startTransaction();
-
-        // Wait for async. worker (full text index) to finish their job
-        Thread.sleep(500);
-        Framework.getService(EventService.class).waitForAsyncCompletion();
-
-        String nxql = "SELECT * FROM Document WHERE ecm:fulltext = '" + fullTextToSearch + "'";
-        DocumentModelList docs = session.query(nxql);
-        assertEquals(1, docs.size());
-
-        doc = docs.get(0);
-        // <-------------------- Test download and check file size -------------------->
-        // If we are here, it is very likely downloading worked since Nuxeo could extract the full text from it
-        Blob downloaded = blopProvider.downloadFile((ManagedBlob) blob);
-        assertNotNull(downloaded);
-        File f = downloaded.getFile();
-        assertTrue(f.exists());
-        if (fileSize > 0) {
-            assertEquals(fileSize.longValue(), f.length());
-        }
+        commitWaitAndTest(null, doc, 0L, FILE_NO_AUTH_FULLTEXT_TO_SEARCH);
 
     }
 }
