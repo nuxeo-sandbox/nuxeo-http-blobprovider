@@ -32,6 +32,7 @@ import org.nuxeo.ecm.core.api.CoreSession;
 import org.nuxeo.ecm.core.api.DocumentModel;
 import org.nuxeo.ecm.core.api.DocumentModelList;
 import org.nuxeo.ecm.core.blob.BlobManager;
+import org.nuxeo.ecm.core.blob.BlobProvider;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
 import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
 import org.nuxeo.ecm.core.event.EventService;
@@ -82,7 +83,7 @@ public class TestService {
     /*
      * Grouping test code
      */
-    protected void createDocumentAndTest(HttpBlobProvider blopProvider, String nameInPath, String docType, String url,
+    protected DocumentModel createDocumentAndTest(HttpBlobProvider blopProvider, String nameInPath, String docType, String url,
             String mimeType, String fileName, Long fileSize, String fullTextToSearch) throws Exception {
         
         if(blopProvider == null) {
@@ -102,11 +103,11 @@ public class TestService {
         doc.setPropertyValue("file:content", (Serializable) blob);
         doc = session.saveDocument(doc);
 
-        commitWaitAndTest(blopProvider, doc, fileSize, fullTextToSearch);
+        return commitWaitAndTest(blopProvider, doc, fileSize, fullTextToSearch);
 
     }
 
-    protected void commitWaitAndTest(HttpBlobProvider blopProvider, DocumentModel doc, Long fileSize,
+    protected DocumentModel commitWaitAndTest(HttpBlobProvider blopProvider, DocumentModel doc, Long fileSize,
             String fullTextToSearch) throws Exception {
         
         if(blopProvider == null) {
@@ -136,6 +137,8 @@ public class TestService {
         if (fileSize > 0) {
             assertEquals(fileSize.longValue(), f.length());
         }
+        
+        return doc;
     }
     
     protected HttpBlobProvider getProvider(String name) {
@@ -237,7 +240,6 @@ public class TestService {
         BlobManager blobManager = Framework.getService(BlobManager.class);
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(HttpBlobProvider.DEFAULT_PROVIDER);
         
-        // Authenticated
         BlobInfo bi = bp.guessInfosFromURL(url);
         assertNotNull(bi);
         assertEquals(mimeType, bi.mimeType);
@@ -254,7 +256,7 @@ public class TestService {
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(OTHER_PROVIDER);
         assertNotNull(bp);
         // Check we really have our provider
-        // Our xml contribution declare the parameters, let them ""
+        // Our xml contribution declares the parameters, letting them empty
         assertEquals(OTHER_PROVIDER, bp.blobProviderId);
         assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_ORIGIN));
         assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_AUTHENTICATION_TYPE));
@@ -262,12 +264,18 @@ public class TestService {
         assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_PWD));
         assertEquals("", bp.properties.get(HttpBlobProvider.PROPERTY_MORE_HEADERS));
 
-        // So we just quickly test if the URL really exist
         boolean canTestFile = bp.urlLooksValid(FILE_NO_AUTH_URL);
         Assume.assumeTrue("Remote file not available, cannot run the test", canTestFile);
 
-        createDocumentAndTest(bp, "File-NoAuth", "File", FILE_NO_AUTH_URL, FILE_NO_AUTH_MIMETYPE,
+        DocumentModel doc = createDocumentAndTest(bp, "File-NoAuth-OtherProvider", "File", FILE_NO_AUTH_URL, FILE_NO_AUTH_MIMETYPE,
                 FILE_NO_AUTH_FILENAME, 0L, FILE_NO_AUTH_FULLTEXT_TO_SEARCH);
+        
+        // Check the blob is handled by our provider
+        Blob b = (Blob) doc.getPropertyValue("file:content");
+        BlobProvider theBP = blobManager.getBlobProvider(b);
+        assertTrue(theBP instanceof HttpBlobProvider);
+        HttpBlobProvider myBP = (HttpBlobProvider) theBP;
+        assertEquals(OTHER_PROVIDER, myBP.blobProviderId);
 
     }
 
