@@ -7,12 +7,22 @@
 			<class>org.nuxeo.http.blobprovider.HttpBlobProvider</class>
 			<property name="preventUserUpdate">true</property>
 
-			<property name="domain">${http.blobprovider.domain:=}</property>
+			<!-- origin must contain the protocol: http://my.wite.com for example -->
+			<property name="origin">${http.blobprovider.origin:=}</property>
+			<!-- So far, current implementation supports "Basic" only. Leave empty 
+				or set to "none" if there is no authentication -->
 			<property name="authenticationType">${http.blobprovider.auth.type:=}</property>
+			<!-- For Basic authentication, the user and password -->
 			<property name="login">${http.blobprovider.auth.login:=}</property>
-			<property name="password">${http.blobprovider.auth.password:=}</property>
+			<property name="password">${http.blobprovider.auth.password:=}
+			</property>
+			<!-- Add any extra headers required by the server. They must be hard-coded 
+				and are not calculated at runtime -->
+			<property name="moreHeadersJson">${http.blobprovider.auth.moreheaders:=}
+			</property>
 			<!-- Extra headers must be passed as a JSON array of {key, value} objects -->
-			<!--  Example: [{key: "Accept", value: "*/*"}, {key: "MyHeader", value: "Something,SomethingElse"}, {key:"OtherOne", value: "And here it is"}] -->
+			<!-- Example: [{key: "Accept", value: "*/*"}, {key: "MyHeader", value: 
+				"Something,SomethingElse"}, {key:"OtherOne", value: "And here it is"}] -->
 
 		</blobprovider>
 	</extension>

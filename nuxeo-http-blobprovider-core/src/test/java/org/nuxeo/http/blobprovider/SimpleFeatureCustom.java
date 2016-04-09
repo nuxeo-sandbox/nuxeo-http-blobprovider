@@ -99,7 +99,7 @@ public class SimpleFeatureCustom extends SimpleFeature {
         Properties p = System.getProperties();
         localTestConfigurationOk = localProperties != null;
         if (localTestConfigurationOk) {
-            p.put(HttpBlobProvider.KEY_DOMAIN, localProperties.get(HttpBlobProvider.KEY_DOMAIN));
+            p.put(HttpBlobProvider.KEY_ORIGIN, localProperties.get(HttpBlobProvider.KEY_ORIGIN));
             p.put(HttpBlobProvider.KEY_AUTHENTICATION_TYPE,
                     localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_TYPE));
             p.put(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN,
@@ -112,7 +112,7 @@ public class SimpleFeatureCustom extends SimpleFeature {
     public void stop(FeaturesRunner runner) throws Exception {
 
         Properties p = System.getProperties();
-        p.remove(HttpBlobProvider.KEY_DOMAIN);
+        p.remove(HttpBlobProvider.KEY_ORIGIN);
         p.remove(HttpBlobProvider.KEY_AUTHENTICATION_TYPE);
         p.remove(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN);
         p.remove(HttpBlobProvider.KEY_AUTHENTICATION_PWD);

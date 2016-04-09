@@ -44,9 +44,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 /**
- * Handle a blob living on a remote HTTP server.
+ * Handle a blob living on a remote HTTP server, in read-only (no write to the server, no synchronization)
  * <p>
- * Nuxeo will handle the blob as if it was living in its own blob store: Thumbnail, full text, ...
+ * Nuxeo will handle the blob as if it was living in its own blob store: Thumbnail, full text, video storyboard, ...
  * <p>
  * First implementation: Support unauthenticated URLs or BASIC authentication
  * <p>
@@ -54,6 +54,37 @@ import java.util.Map.Entry;
  * remote server => We should have some cache mechanism for optimization, instead of downloading the file from the
  * distant url. This cache should be an option though, because in some application, the distant server wants to keep
  * track of all the downloads, etc.
+ * <p>
+ * There is one default blob provider, named "http", contributed by the plug-in. It is ready to use configuraiton
+ * parameters stored in nuxeo.conf file:
+ * <ul>
+ * <li>http.blobprovider.origin<br/>
+ * Notice this parameter must also contains the protocol</li>
+ * <li>http.blobprovider.auth.type</li>
+ * <li>http.blobprovider.auth.login</li>
+ * <li>http.blobprovider.auth.password</li>
+ * <li>http.blobprovider.auth.moreHeadersJson</li>
+ * </ul>
+ * So you can just put these parameters in your configuration and it will work as expected.
+ * <p>
+ * To setup another http-blob provider, contribute the same extension and change the name ("my-http") and the
+ * properties. You can use the same mechanism as in the default provider, and set up a property with a configuration
+ * parameter using the following expression:
+ * 
+ * <pre>
+ * <property name="origin">${my.other.provider.origin:=}</property>
+ * </pre>
+ * 
+ * Just stating the obvious: You can't add a property that is not used here. The current implementation supports the
+ * properties listed above (origin, authentication type, ...). Well, you cn add it, it will just be ignored :->
+ * <p>
+ * Also, notice that by default a blob provider allows connection to domains that are not the one set in the "origin"
+ * property. In this case, the provider assumes the call is always unauthenticated. So for example, if your
+ * contributions has the <code><property name="origin">http://my.site.com</property></code> property and you use an url
+ * like "http://somethingelse.com/thefile.pdf", then the provider will try to get the file with no authentication.
+ * <p>
+ * In this example, if you need to access "thefile.pdf" and the site requires authentication, you must declare another
+ * http blob provider
  * 
  * @since 8.1
  */
@@ -63,11 +94,11 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     private static final Log log = LogFactory.getLog(HttpBlobProvider.class);
 
     // <-------------------- Configuration Parameters -------------------->
-    // Default configuration parameters. Mainly used in test, since,
+    // Names (keys) of the default parameters, as used in the default xml contribution.
     // as a user of the blob provider, you are supposed to:
     // -> Setup the correct XML contribution to BlobProvider
     // -> And either hard code the values or use you own configuration parameters
-    public static final String KEY_DOMAIN = "http.blobprovider.domain";
+    public static final String KEY_ORIGIN = "http.blobprovider.origin";
 
     public static final String KEY_AUTHENTICATION_TYPE = "http.blobprovider.auth.type";
 
@@ -75,8 +106,10 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     public static final String KEY_AUTHENTICATION_PWD = "http.blobprovider.auth.password";
 
+    public static final String KEY_AUTHENTICATION_MORE_HEADERS = "http.blobprovider.moreheaders";
+
     // <-------------------- Names of properties in the XML -------------------->
-    public static final String PROPERTY_DOMAIN = "domain";
+    public static final String PROPERTY_ORIGIN = "origin";
 
     public static final String PROPERTY_AUTHENTICATION_TYPE = "authenticationType";
 
@@ -84,7 +117,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     public static final String PROPERTY_PWD = "password";
 
-    public static final String PROPERTY_EXTRA_HEADERS = "moreHeadersJson";
+    public static final String PROPERTY_MORE_HEADERS = "moreHeadersJson";
 
     // <-------------------- Other constants -------------------->
     protected static final String AUTH_NONE = "None";
@@ -96,7 +129,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     public static final String DEFAULT_PROVIDER = "http";
 
     // <-------------------- Implementation -------------------->
-    protected String domain;
+    protected String origin;
 
     protected String authenticationType;
 
@@ -131,8 +164,8 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         authenticationType = properties.get(PROPERTY_AUTHENTICATION_TYPE);
         authenticationType = StringUtils.isBlank(authenticationType) ? "" : authenticationType;
 
-        domain = properties.get(PROPERTY_DOMAIN);
-        domain = StringUtils.isBlank(domain) ? "" : domain;
+        origin = properties.get(PROPERTY_ORIGIN);
+        origin = StringUtils.isBlank(origin) ? "" : origin;
 
         authenticationLogin = properties.get(PROPERTY_LOGIN);
         authenticationLogin = StringUtils.isBlank(authenticationLogin) ? "" : authenticationLogin;
@@ -140,7 +173,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         authenticationPwd = properties.get(PROPERTY_PWD);
         authenticationPwd = StringUtils.isBlank(authenticationPwd) ? "" : authenticationPwd;
 
-        String moreHeadersJson = properties.get(PROPERTY_EXTRA_HEADERS);
+        String moreHeadersJson = properties.get(PROPERTY_MORE_HEADERS);
         moreHeadersJson = StringUtils.isBlank(moreHeadersJson) ? "" : moreHeadersJson;
 
         // <-------------------- Realign etc. -------------------->
@@ -192,7 +225,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     @Override
     public InputStream getStream(ManagedBlob blob) throws IOException {
 
-        //log.warn("===========> GET STREAM - Length: " + blob.getLength());
+        // log.warn("===========> GET STREAM - Length: " + blob.getLength());
 
         String urlStr = extractUrl(blob);
 
@@ -201,23 +234,8 @@ public class HttpBlobProvider extends AbstractBlobProvider {
             URL url = new URL(urlStr);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-            // No authentication type or not the original domain => Assume the url does not require authentication.
-            // Else => authentication
-            if (StringUtils.isNotBlank(domain) && urlStr.toLowerCase().startsWith(domain)) {
+            addHeaders(connection, urlStr);
 
-                switch (authenticationType) {
-                case AUTH_BASIC:
-                    connection.setRequestProperty("Authorization", basicAuthentication);
-                    if (moreHeaders.size() > 0) {
-                        for (Entry<String, String> entry : moreHeaders.entrySet()) {
-                            connection.setRequestProperty(entry.getKey(), entry.getValue());
-                        }
-                    }
-                    break;
-
-                // . . . Other cases . . .
-                }
-            }
             stream = connection.getInputStream();
 
         } catch (MalformedURLException e) {
@@ -233,10 +251,17 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     }
 
-    /*
-     * This looks like dead code but it not. Not fully at least. Used for tests while implementing
+    /**
+     * Downloads the remote data, return a temp. blob, with ".tmp" as file extension
+     * <p>
+     * (used by unit tests so far)
+     * 
+     * @param blob
+     * @return
+     * @throws IOException
+     * @since 8.1
      */
-    protected Blob downloadFile(ManagedBlob blob) throws IOException {
+    public Blob downloadFile(ManagedBlob blob) throws IOException {
 
         Blob result = null;
 
@@ -245,23 +270,11 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         URL url = new URL(urlStr);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-        // No authentication type or not the original domain => Assume the url does not require authentication.
-        // Else => authentication
-        if (StringUtils.isNotBlank(domain) && urlStr.toLowerCase().startsWith(domain)) {
+        addHeaders(connection, urlStr);
 
-            switch (authenticationType) {
-            case AUTH_BASIC:
-                connection.setRequestProperty("Authorization", basicAuthentication);
-                if (moreHeaders.size() > 0) {
-                    for (Entry<String, String> entry : moreHeaders.entrySet()) {
-                        connection.setRequestProperty(entry.getKey(), entry.getValue());
-                    }
-                }
-                break;
+        String fileName = blob.getFilename();
+        String mimeType = blob.getMimeType();
 
-            // . . . Other cases . . .
-            }
-        }
         result = Blobs.createBlobWithExtension(".tmp");
         FileOutputStream outputStream = new FileOutputStream(result.getFile());
         InputStream inputStream = connection.getInputStream();
@@ -273,8 +286,8 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         outputStream.close();
         inputStream.close();
 
-        result.setFilename(blob.getFilename());
-        result.setMimeType(blob.getMimeType());
+        result.setFilename(fileName);
+        result.setMimeType(mimeType);
 
         return result;
     }
@@ -335,54 +348,64 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         return new SimpleManagedBlob(newInfo);
     }
 
+    public boolean urlLooksValid(ManagedBlob blob) {
+
+        String urlStr = extractUrl(blob);
+
+        return urlLooksValid(urlStr);
+    }
+
+    public boolean urlLooksValid(String urlStr) {
+
+        boolean looksOk = false;
+        try {
+            URL url = new URL(urlStr);
+            HttpURLConnection huc = (HttpURLConnection) url.openConnection();
+
+            addHeaders(huc, urlStr);
+
+            huc.setRequestMethod("HEAD");
+            int responseCode = huc.getResponseCode();
+            looksOk = responseCode == HttpURLConnection.HTTP_OK;
+
+        } catch (Exception e) {
+            looksOk = false;
+        }
+
+        return looksOk;
+    }
+
+    /*
+     * Just a centralization of adding the headers if needed.
+     */
+    protected void addHeaders(HttpURLConnection connection, String urlStr) {
+
+        // No authentication type or not the original domain => Assume the url does not require authentication.
+        // Else => authentication
+        if (StringUtils.isNotBlank(origin) && urlStr.toLowerCase().startsWith(origin)) {
+
+            switch (authenticationType) {
+            case AUTH_BASIC:
+                connection.setRequestProperty("Authorization", basicAuthentication);
+                break;
+
+            // . . . Other cases . . .
+            }
+        }
+
+        if (moreHeaders.size() > 0) {
+            for (Entry<String, String> entry : moreHeaders.entrySet()) {
+                connection.setRequestProperty(entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
     protected boolean isBasicAuthentication() {
         return StringUtils.isNotBlank(authenticationType) && authenticationType.equals(AUTH_BASIC);
     }
 
     protected boolean isNoAuthentication() {
         return StringUtils.isBlank(authenticationType) || authenticationType.equals(AUTH_NONE);
-    }
-    
-
-    public boolean urlLooksValid(ManagedBlob blob) {
-    
-        String urlStr = extractUrl(blob);
-        
-        return urlLooksValid(urlStr);
-    }
-    
-    public boolean urlLooksValid(String urlStr) {
-        
-        boolean looksOk = false;
-        try {
-            URL url = new URL(urlStr);
-            HttpURLConnection huc = (HttpURLConnection) url.openConnection();
-            
-            if (StringUtils.isNotBlank(domain) && urlStr.toLowerCase().startsWith(domain)) {
-
-                switch (authenticationType) {
-                case AUTH_BASIC:
-                    huc.setRequestProperty("Authorization", basicAuthentication);
-                    if (moreHeaders.size() > 0) {
-                        for (Entry<String, String> entry : moreHeaders.entrySet()) {
-                            huc.setRequestProperty(entry.getKey(), entry.getValue());
-                        }
-                    }
-                    break;
-
-                // . . . Other cases . . .
-                }
-            }
-            
-            huc.setRequestMethod("HEAD");
-            int responseCode = huc.getResponseCode();
-            looksOk = responseCode == HttpURLConnection.HTTP_OK;
-            
-        } catch (Exception e) {
-            looksOk = false;
-        }
-
-        return looksOk;
     }
 
 }
