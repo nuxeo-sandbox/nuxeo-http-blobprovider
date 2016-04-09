@@ -5,7 +5,7 @@
 		point="configuration">
 		<blobprovider name="http">
 			<class>org.nuxeo.http.blobprovider.HttpBlobProvider</class>
-			<!-- Notice that whatever the value here, as of today, the implementaiton 
+			<!-- Notice that whatever the value here, as of today, the implementation 
 				does not support writing to the distant server -->
 			<property name="preventUserUpdate">true</property>
 
