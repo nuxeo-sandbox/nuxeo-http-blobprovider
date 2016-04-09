@@ -142,7 +142,7 @@ public class TestService {
 
         BlobManager blobManager = Framework.getService(BlobManager.class);
         if (name == null) {
-            name = "http";
+            name = HttpBlobProvider.DEFAULT_PROVIDER;
         }
         return (HttpBlobProvider) blobManager.getBlobProvider(name);
     }
@@ -163,7 +163,7 @@ public class TestService {
 
         // Instantiate the blobProvider now
         BlobManager blobManager = Framework.getService(BlobManager.class);
-        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(HttpBlobProvider.DEFAULT_PROVIDER);
         assertNotNull(bp);
 
         // So we just quickly test if the URL really exist
@@ -201,7 +201,7 @@ public class TestService {
 
         // Instantiate the blobProvider now
         BlobManager blobManager = Framework.getService(BlobManager.class);
-        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider("http");
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(HttpBlobProvider.DEFAULT_PROVIDER);
         assertNotNull(bp);
 
         boolean canTestFile = bp.urlLooksValid(url);
@@ -209,6 +209,41 @@ public class TestService {
 
         createDocumentAndTest(bp, "File-Auth", "File", url, mimeType, fileName, fileSize, fullTextTSearch);
 
+    }
+    
+    @Test
+    public void testGuessInfo_noAithentication() throws Exception {
+        
+        BlobManager blobManager = Framework.getService(BlobManager.class);
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(HttpBlobProvider.DEFAULT_PROVIDER);
+        
+        BlobInfo bi = bp.guessInfosFromURL(FILE_NO_AUTH_URL);
+        assertTrue(bi != null);
+        assertTrue(bi.mimeType.startsWith(FILE_NO_AUTH_MIMETYPE));
+        assertEquals(FILE_NO_AUTH_FILENAME, bi.filename);
+        
+    }
+    
+    @Test
+    public void testGuessInfo_authenticated() throws Exception {
+        
+        Assume.assumeTrue("No local configuration file, no test", SimpleFeatureCustom.hasLocalTestConfiguration());
+
+        String url = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_URL);
+        String mimeType = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_MIME_TYPE);
+        String fileName = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_FILE_NAME);
+        String fileSizeStr = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_SIZE);
+
+        BlobManager blobManager = Framework.getService(BlobManager.class);
+        HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(HttpBlobProvider.DEFAULT_PROVIDER);
+        
+        // Authenticated
+        BlobInfo bi = bp.guessInfosFromURL(url);
+        assertNotNull(bi);
+        assertTrue(bi.mimeType.startsWith(mimeType));
+        assertEquals(fileName, bi.filename);
+        assertEquals(fileSizeStr, bi.length.toString());
+        
     }
 
     @Test
@@ -258,7 +293,7 @@ public class TestService {
         
         Blob b = (Blob) doc.getPropertyValue("file:content");
         assertNotNull(b);
-        assertEquals(FILE_NO_AUTH_MIMETYPE, b.getMimeType());
+        assertTrue(b.getMimeType().startsWith(FILE_NO_AUTH_MIMETYPE));
         assertEquals(FILE_NO_AUTH_FILENAME, b.getFilename());
 
         commitWaitAndTest(null, doc, 0L, FILE_NO_AUTH_FULLTEXT_TO_SEARCH);

@@ -18,6 +18,7 @@
 package org.nuxeo.http.blobprovider;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -354,12 +355,18 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     /**
      * Creates a blob whose key is the remote URL
      * <p>
-     * <b>IMPORTANT</b>: The <code>blobInfo.key</code> field will be replaced by the provider's own key scheme
+     * <b>IMPORTANT</b>:
+     * <ul>
+     * <li>The <code>blobInfo.key</code> field will be replaced by the provider's own key scheme</li>
+     * <li>blobInfo <i>must</i> contain the mime type and the filename. If they don't, the code tries to guess the
+     * values by sending a HEAD request. If this fails, an error is thrown.</li>
+     * </ul>
      * <p>
      * The passed {@link BlobInfo} contains information about the blob
      * <p>
+     * <p>
      * A future improvement would be to allow just a URL and using HEAD request maybe to fetch the infos (mime type,
-     * lengh, file name, ...)
+     * lenght, file name, ...)
      *
      * @param blobInfo the blob info where the key is the URL
      * @return the blob
@@ -371,28 +378,30 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         BlobInfo newInfo = new BlobInfo(blobInfo);
         newInfo.key = blobProviderId + ":" + url;
 
-        // ==================================================
-        if (newInfo.length == null || newInfo.length < 0 || StringUtils.isBlank(newInfo.mimeType)) {
+        if (StringUtils.isBlank(newInfo.mimeType) || newInfo.length == null || newInfo.length < 0) {
 
-            // Here, get info from the server using HEAD maybe
-            if (newInfo.length == null) {
-                // Default widgets in the UI activate a link if the length is >= 0 (see extended_file_widget.xhtml)
-                newInfo.length = 0L;
+            BlobInfo guessedInfo = guessInfosFromURL(url);
+            
+            if(guessedInfo == null || newInfo.mimeType == null || newInfo.filename == null) {
+                throw new NuxeoException("BlobInfo with no mime type or no file name, and could not guess them.");
             }
+            
+            newInfo.mimeType = guessedInfo.mimeType == null ? newInfo.mimeType : guessedInfo.mimeType;
+            newInfo.filename = guessedInfo.filename == null ? newInfo.filename : guessedInfo.filename;
+            newInfo.encoding = guessedInfo.encoding == null ? newInfo.encoding : guessedInfo.encoding;
         }
-        // ==================================================
 
-        if (StringUtils.isBlank(newInfo.filename)) {
-            newInfo.filename = url;
+        if (newInfo.length == null) {
+            // Default widgets in the UI activate a link if the length is >= 0 (see extended_file_widget.xhtml)
+            newInfo.length = 0L;
         }
+
         if (StringUtils.isBlank(newInfo.digest)) {
-            newInfo.digest = url;
+            newInfo.digest = DigestUtils.md5Hex(url);
         }
         if (StringUtils.isBlank(newInfo.encoding)) {
             newInfo.encoding = null;
         }
-
-        // newInfo.encoding
 
         return new SimpleManagedBlob(newInfo);
     }
@@ -436,6 +445,63 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         }
 
         return looksOk;
+    }
+
+    /**
+     * Sends a HEAD request to get the info without downloading the file.
+     * <p>
+     * If an error occurs, returns null.
+     * 
+     * @param urlStr
+     * @return the BlobInfo
+     * @since 8.1
+     */
+    public BlobInfo guessInfosFromURL(String urlStr) {
+
+        BlobInfo bi = null;
+        try {
+            URL url = new URL(urlStr);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+            addHeaders(connection, urlStr);
+
+            connection.setRequestMethod("HEAD");
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+
+                bi = new BlobInfo();
+
+                bi.mimeType = connection.getContentType();
+                bi.encoding = connection.getContentEncoding();
+                bi.length = connection.getContentLengthLong();
+                if (bi.length < 0) {
+                    bi.length = 0L;
+                }
+
+                String disposition = connection.getHeaderField("Content-Disposition");
+                String[] attributes = disposition.split(";");
+
+                for (String attr : attributes) {
+                    if (attr.toLowerCase().contains("filename=")) {
+                        attr = attr.trim();
+                        // Remove filename=
+                        String fileName = attr.substring(9);
+                        int idx = fileName.indexOf("\"");
+                        if (idx > -1) {
+                            fileName = fileName.substring(idx + 1, fileName.lastIndexOf("\""));
+                        }
+                        bi.filename = fileName;
+
+                        break;
+                    }
+                }
+            }
+
+        } catch (Exception e) { // Whatever the error, we fail. No need to be granular here.
+            bi = null;
+        }
+
+        return bi;
     }
 
 }
