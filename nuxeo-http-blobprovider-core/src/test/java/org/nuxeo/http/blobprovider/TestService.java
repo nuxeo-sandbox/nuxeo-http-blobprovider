@@ -212,14 +212,14 @@ public class TestService {
     }
     
     @Test
-    public void testGuessInfo_noAithentication() throws Exception {
+    public void testGuessInfo_noAuthentication() throws Exception {
         
         BlobManager blobManager = Framework.getService(BlobManager.class);
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(HttpBlobProvider.DEFAULT_PROVIDER);
         
         BlobInfo bi = bp.guessInfosFromURL(FILE_NO_AUTH_URL);
         assertTrue(bi != null);
-        assertTrue(bi.mimeType.startsWith(FILE_NO_AUTH_MIMETYPE));
+        assertEquals(FILE_NO_AUTH_MIMETYPE, bi.mimeType);
         assertEquals(FILE_NO_AUTH_FILENAME, bi.filename);
         
     }
@@ -240,7 +240,7 @@ public class TestService {
         // Authenticated
         BlobInfo bi = bp.guessInfosFromURL(url);
         assertNotNull(bi);
-        assertTrue(bi.mimeType.startsWith(mimeType));
+        assertEquals(mimeType, bi.mimeType);
         assertEquals(fileName, bi.filename);
         assertEquals(fileSizeStr, bi.length.toString());
         
@@ -293,7 +293,7 @@ public class TestService {
         
         Blob b = (Blob) doc.getPropertyValue("file:content");
         assertNotNull(b);
-        assertTrue(b.getMimeType().startsWith(FILE_NO_AUTH_MIMETYPE));
+        assertEquals(FILE_NO_AUTH_MIMETYPE, b.getMimeType());
         assertEquals(FILE_NO_AUTH_FILENAME, b.getFilename());
 
         commitWaitAndTest(null, doc, 0L, FILE_NO_AUTH_FULLTEXT_TO_SEARCH);

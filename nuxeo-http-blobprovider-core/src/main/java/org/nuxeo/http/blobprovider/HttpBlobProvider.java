@@ -378,7 +378,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         BlobInfo newInfo = new BlobInfo(blobInfo);
         newInfo.key = blobProviderId + ":" + url;
 
-        if (StringUtils.isBlank(newInfo.mimeType) || newInfo.length == null || newInfo.length < 0) {
+        if (StringUtils.isBlank(newInfo.mimeType) || StringUtils.isBlank(newInfo.filename)) {
 
             BlobInfo guessedInfo = guessInfosFromURL(url);
             
@@ -470,8 +470,14 @@ public class HttpBlobProvider extends AbstractBlobProvider {
             if (responseCode == HttpURLConnection.HTTP_OK) {
 
                 bi = new BlobInfo();
-
+                
                 bi.mimeType = connection.getContentType();
+                // Remove possible ...;charset="something"
+                int idx = bi.mimeType.indexOf(";");
+                if(idx >= 0) {
+                    bi.mimeType = bi.mimeType.substring(0, idx);
+                }
+                
                 bi.encoding = connection.getContentEncoding();
                 bi.length = connection.getContentLengthLong();
                 if (bi.length < 0) {
@@ -486,7 +492,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
                         attr = attr.trim();
                         // Remove filename=
                         String fileName = attr.substring(9);
-                        int idx = fileName.indexOf("\"");
+                        idx = fileName.indexOf("\"");
                         if (idx > -1) {
                             fileName = fileName.substring(idx + 1, fileName.lastIndexOf("\""));
                         }

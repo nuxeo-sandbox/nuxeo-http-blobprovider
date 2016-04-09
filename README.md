@@ -10,7 +10,7 @@ When the [download service](https://doc.nuxeo.com/display/NXDOC/File+Storage#Fil
 
 As of "today" (April 2016), the plug-in handles urls requiring no authentication or basic authentication
 
-To create a blob using this provider, you will use the [`HTTP BlobProvider: Create Blob`](#creating-a-blob-handled)by-the-provider) operation.
+To create a blob using this provider, you will use the [`HTTP BlobProvider: Create Blob`](#creating-a-blob-handled)by-the-provider) operation, and pass at least a mime-type and a fileName (if not passed, the plug-in will try to guess the values by sending a `HEAD` request)
 
 # Configuration
 As any `BlobProvider`, the HTTP BlobProvider is configured via an _extension point_. This lets you configure different providers (each one with a unique name), handling different servers, and different authentications.
@@ -112,6 +112,8 @@ To summarize: If the URL does not fit the `"origin"` property, no error is trigg
 
 To create a blob handled by the provider, you will use the `HTTP BlobProvider: Create Blob` operation. Typically, you will store the URL to use in a field and then call the operation from the `About to Create` and/or `Before modification`.
 
+The `mimeType` and `fileName` parameters should be passed. If they are not passed, the plug-in will try to guess the values by sending a HEAD request to the remote server, which can be costly.
+
 The `HTTP BlobProvider: Create Blob` operation (ID: `HTTPBlobProvider.CreateBlob`):
 
 *  Accepts
@@ -123,8 +125,8 @@ The `HTTP BlobProvider: Create Blob` operation (ID: `HTTPBlobProvider.CreateBlob
     * `urlXPath`: The field where to read the URL from. Required if the input is `Document`
     * `blobXPath`: Optional. The field where to store the blob (`file:content` by default)
     * `save`: Optional. If `true` the input document will be saved after setting the blob.
-  * `mimeType`: Required. The mime type of the distant file (application/pdf, image/png, ...)
-  * `fileName`: Required. The name of the distant file
+  * `mimeType`: Optional, but recommended. The mime type of the distant file (application/pdf, image/png, ...).
+  * `fileName`: Optional, but recommended. The name of the distant file
   * `fileSize`: Optional. The exact size of the distant file
   * `encoding`: Optional. The encoding of the distant file
   * `digest`: Optional. The digest of the distant file. If not passed, the URL is used as digest.
