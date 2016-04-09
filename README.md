@@ -1,5 +1,9 @@
 # nuxeo-http-blobprovider
 
+
+
+QA build status: [![Build Status](https://qa.nuxeo.org/jenkins/buildStatus/icon?job=Sandbox/sandbox_nuxeo-http-blobprovider-master)](https://qa.nuxeo.org/jenkins/buildStatus/icon?job=Sandbox/sandbox_nuxeo-http-blobprovider-master)
+
 This plug-in provides a [`BlobProvider`](https://doc.nuxeo.com/x/fYYZAQ) class allowing to handle a remote binary, referenced via its URL. The  original binary is not stored in the default BinaryStore of Nuxeo (typically, the File System), it stays on its server. Still, the default features apply: Full text extraction, image metadata, video transcoding, ... (and the result of these computation are hold by Nuxeo: Thumbnail, images of the storyboard, picture conversions, ...).
 
 When the [download service](https://doc.nuxeo.com/display/NXDOC/File+Storage#FileStorage-DownloadService) is involved (a user clicking a "Download" button for example), the blob is read on its remote server.
