@@ -19,12 +19,15 @@ package org.nuxeo.http.blobprovider;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.nuxeo.common.file.FileCache;
+import org.nuxeo.common.file.LRUFileCache;
 import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.api.Blobs;
 import org.nuxeo.ecm.core.api.NuxeoException;
@@ -33,7 +36,11 @@ import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
 import org.nuxeo.ecm.core.blob.SimpleManagedBlob;
 import org.nuxeo.ecm.core.model.Document;
+import org.nuxeo.runtime.api.Framework;
+import org.nuxeo.runtime.trackers.files.FileEventTracker;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -109,6 +116,14 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     public static final String KEY_AUTHENTICATION_MORE_HEADERS = "http.blobprovider.moreheaders";
 
+    public static final String KEY_AUTHENTICATION_USE_CACHE = "http.blobprovider.usecache";
+
+    public static final String KEY_AUTHENTICATION_CACHE_MAX_FILE_SIZE = "http.blobprovider.cache.maxFileSize";
+
+    public static final String KEY_AUTHENTICATION_CACHE_MAX_COUNT = "http.blobprovider.cache.maxCount";
+
+    public static final String KEY_AUTHENTICATION_CACHE_MIN_AGE = "http.blobprovider.cache.minAge";
+
     // <-------------------- Names of properties in the XML -------------------->
     public static final String PROPERTY_ORIGIN = "origin";
 
@@ -120,6 +135,14 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     public static final String PROPERTY_MORE_HEADERS = "moreHeadersJson";
 
+    public static final String PROPERTY_USE_CACHE = "useCache";
+
+    public static final String PROPERTY_CACHE_MAX_FILE_SIZE = "cacheMaxFileSize";
+
+    public static final String PROPERTY_CACHE_MAX_COUNT = "cacheMaxCount";
+
+    public static final String PROPERTY_CACHE_MIN_AGE = "cacheMinAge";
+
     // <-------------------- Other constants -------------------->
     protected static final String AUTH_NONE = "None";
 
@@ -128,6 +151,12 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     public static final String[] SUPPORTED_AUTHENTICATION_METHODS = { AUTH_NONE, AUTH_BASIC };
 
     public static final String DEFAULT_PROVIDER = "http";
+
+    public static final long DEFAULT_CACHE_MAX_FILE_SIZE = 100 * 1024 * 1024;
+
+    public static final long DEFAULT_CACHE_MAX_COUNT = 10000;
+
+    public static final long DEFAULT_CACHE_MIN_AGE = 3600; // 1h
 
     // <-------------------- Implementation -------------------->
     protected String origin;
@@ -141,6 +170,10 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     protected String basicAuthentication;
 
     protected HashMap<String, String> moreHeaders;
+
+    protected File cachedir = null;
+
+    protected FileCache fileCache = null;
 
     // <============================================================================>
     // <============================ NON PUBLIC METHODS ============================>
@@ -211,6 +244,48 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     }
 
+    protected void setupCache() throws IOException {
+
+        boolean useCache;
+
+        String str = properties.get(PROPERTY_USE_CACHE);
+        useCache = StringUtils.isNotBlank(str) && str.toLowerCase().equals("true");
+
+        if (useCache) {
+            String name = StringUtils.replace(blobProviderId, " ", "") + "_cache";
+            cachedir = Framework.createTempFile(name, "");
+            cachedir.delete();
+            cachedir.mkdir();
+
+            long maxSize = getLongFromProperties(PROPERTY_CACHE_MAX_FILE_SIZE, DEFAULT_CACHE_MAX_FILE_SIZE);
+            long maxCount = getLongFromProperties(PROPERTY_CACHE_MAX_COUNT, DEFAULT_CACHE_MAX_COUNT);
+            long minAge = getLongFromProperties(PROPERTY_CACHE_MIN_AGE, DEFAULT_CACHE_MIN_AGE);
+
+            fileCache = new LRUFileCache(cachedir, maxSize, maxCount, minAge);
+
+            // be sure FileTracker won't steal our files!
+            FileEventTracker.registerProtectedPath(cachedir.getAbsolutePath());
+        }
+    }
+
+    protected long getLongFromProperties(String key, long defaultValue) {
+
+        long value;
+        String str = properties.get(key);
+
+        try {
+            value = Long.parseLong(str);
+        } catch (NumberFormatException e) {
+            value = -1;
+        }
+
+        if (value <= 0) {
+            value = defaultValue;
+        }
+
+        return value;
+    }
+
     /*
      * Just a centralization of adding the headers if needed.
      */
@@ -254,6 +329,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
         try {
             setupFromProperties();
+            setupCache();
         } catch (JSONException e) {
             throw new IOException("Failed to load extra headers from the configuration", e);
         }
@@ -261,6 +337,18 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     @Override
     public void close() {
+
+        if (fileCache != null) {
+            fileCache.clear();
+        }
+
+        if (cachedir != null) {
+            try {
+                FileUtils.deleteDirectory(cachedir);
+            } catch (IOException e) {
+                throw new NuxeoException(e);
+            }
+        }
     }
 
     @Override
@@ -271,27 +359,45 @@ public class HttpBlobProvider extends AbstractBlobProvider {
     @Override
     public InputStream getStream(ManagedBlob blob) throws IOException {
 
-        // log.warn("===========> GET STREAM - Length: " + blob.getLength());
-
-        String urlStr = extractUrl(blob);
-
         InputStream stream = null;
-        try {
-            URL url = new URL(urlStr);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
-            addHeaders(connection, urlStr);
+        String digest = null;
+        // Using cache: Either get the file from the cache or download it and add it to the cache
+        // TODO: If the file is not in the cache, let's put it later, in another thread, asynchronously
+        // so we don't delay the download form the client
 
-            stream = connection.getInputStream();
+        if (fileCache != null) {
+            digest = blob.getDigest();
+            if (digest == null) {
+                throw new NuxeoException("This blob has no digest: " + blob.getKey());
+            }
+            File file = fileCache.getFile(digest);
+            if (file == null) {
+                Blob downloaded = downloadFile(blob);
+                file = downloaded.getFile();
+                fileCache.putFile(digest, file);
+                file = fileCache.getFile(digest);
+            }
+            stream = new FileInputStream(file);
 
-        } catch (MalformedURLException e) {
-            throw new NuxeoException("Fatal protocol violation", e);
-        } catch (IOException e) {
-            throw new IOException("Fatal transport error", e);
-        } finally {
+        } else {
+            // Not using the cache: Just get the file from the http stream.
+            String urlStr = extractUrl(blob);
+            try {
+                URL url = new URL(urlStr);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                addHeaders(connection, urlStr);
+
+                stream = connection.getInputStream();
+
+            } catch (MalformedURLException e) {
+                throw new NuxeoException("Fatal protocol violation", e);
+            } catch (IOException e) {
+                throw new IOException("Fatal transport error", e);
+            } finally {
+            }
         }
-
-        // log.warn("===========> GET STREAM => " + (stream == null ? "NULL" : "Not null"));
 
         return stream;
 
@@ -383,11 +489,11 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         if (StringUtils.isBlank(newInfo.mimeType) || StringUtils.isBlank(newInfo.filename)) {
 
             BlobInfo guessedInfo = guessInfosFromURL(url);
-            
-            if(guessedInfo == null || newInfo.mimeType == null || newInfo.filename == null) {
+
+            if (guessedInfo == null || newInfo.mimeType == null || newInfo.filename == null) {
                 throw new NuxeoException("BlobInfo with no mime type or no file name, and could not guess them.");
             }
-            
+
             newInfo.mimeType = guessedInfo.mimeType == null ? newInfo.mimeType : guessedInfo.mimeType;
             newInfo.filename = guessedInfo.filename == null ? newInfo.filename : guessedInfo.filename;
             newInfo.encoding = guessedInfo.encoding == null ? newInfo.encoding : guessedInfo.encoding;
@@ -472,14 +578,14 @@ public class HttpBlobProvider extends AbstractBlobProvider {
             if (responseCode == HttpURLConnection.HTTP_OK) {
 
                 bi = new BlobInfo();
-                
+
                 bi.mimeType = connection.getContentType();
                 // Remove possible ...;charset="something"
                 int idx = bi.mimeType.indexOf(";");
-                if(idx >= 0) {
+                if (idx >= 0) {
                     bi.mimeType = bi.mimeType.substring(0, idx);
                 }
-                
+
                 bi.encoding = connection.getContentEncoding();
                 bi.length = connection.getContentLengthLong();
                 if (bi.length < 0) {
@@ -510,6 +616,22 @@ public class HttpBlobProvider extends AbstractBlobProvider {
         }
 
         return bi;
+    }
+
+    public int getNumberOfCachedFiles() {
+        if (fileCache != null) {
+            return fileCache.getNumberOfItems();
+        }
+
+        return 0;
+    }
+    
+    public boolean isCached(ManagedBlob blob) {
+        if (fileCache != null && blob.getDigest() != null) {
+            return fileCache.getFile(blob.getDigest()) != null;
+        }
+        
+        return false;
     }
 
 }

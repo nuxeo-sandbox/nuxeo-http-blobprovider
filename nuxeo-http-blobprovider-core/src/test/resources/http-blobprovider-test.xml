@@ -18,6 +18,13 @@
 			<property name="password"></property>
 			<property name="moreHeadersJson"></property>
 			
+			<!-- We also test the local cache -->
+			<!-- (sing default values for the cache details) -->
+			<property name="useCache">true</property>
+			<property name="cacheMaxFileSize"></property>
+			<property name="cacheMaxCount"></property>
+			<property name="cacheMinAge"></property>
+			
 		</blobprovider>
 	</extension>
 </component>
