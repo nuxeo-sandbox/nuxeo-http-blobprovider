@@ -173,6 +173,8 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
         origin = properties.get(PROPERTY_ORIGIN);
         origin = StringUtils.isBlank(origin) ? "" : origin;
+        // When checking if the file's url is ok, we want to get rid of the case.
+        origin = origin.toLowerCase();
 
         authenticationLogin = properties.get(PROPERTY_LOGIN);
         authenticationLogin = StringUtils.isBlank(authenticationLogin) ? "" : authenticationLogin;
