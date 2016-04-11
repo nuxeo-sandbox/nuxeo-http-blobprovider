@@ -118,7 +118,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     public static final String KEY_AUTHENTICATION_USE_CACHE = "http.blobprovider.usecache";
 
-    public static final String KEY_AUTHENTICATION_CACHE_MAX_FILE_SIZE = "http.blobprovider.cache.maxFileSize";
+    public static final String KEY_AUTHENTICATION_CACHE_MAX_SIZE = "http.blobprovider.cache.maxSize";
 
     public static final String KEY_AUTHENTICATION_CACHE_MAX_COUNT = "http.blobprovider.cache.maxCount";
 
@@ -137,7 +137,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     public static final String PROPERTY_USE_CACHE = "useCache";
 
-    public static final String PROPERTY_CACHE_MAX_FILE_SIZE = "cacheMaxFileSize";
+    public static final String PROPERTY_CACHE_MAX_SIZE = "cacheMaxSize";
 
     public static final String PROPERTY_CACHE_MAX_COUNT = "cacheMaxCount";
 
@@ -152,7 +152,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 
     public static final String DEFAULT_PROVIDER = "http";
 
-    public static final long DEFAULT_CACHE_MAX_FILE_SIZE = 100 * 1024 * 1024;
+    public static final long DEFAULT_CACHE_MAX_FILE_SIZE = 500 * 1024 * 1024;
 
     public static final long DEFAULT_CACHE_MAX_COUNT = 10000;
 
@@ -257,7 +257,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
             cachedir.delete();
             cachedir.mkdir();
 
-            long maxSize = getLongFromProperties(PROPERTY_CACHE_MAX_FILE_SIZE, DEFAULT_CACHE_MAX_FILE_SIZE);
+            long maxSize = getLongFromProperties(PROPERTY_CACHE_MAX_SIZE, DEFAULT_CACHE_MAX_FILE_SIZE);
             long maxCount = getLongFromProperties(PROPERTY_CACHE_MAX_COUNT, DEFAULT_CACHE_MAX_COUNT);
             long minAge = getLongFromProperties(PROPERTY_CACHE_MIN_AGE, DEFAULT_CACHE_MIN_AGE);
 
