@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<component name="nuxeo.http-blobprovider.test.listeners">
+
+<!-- 
+  <require>org.nuxeo.ecm.core.event.EventServiceComponent</require>
+
+  <extension target="org.nuxeo.ecm.core.event.EventServiceComponent" point="listener">
+
+    <listener name="pictureChangedListener" enabled="false"
+      class="org.nuxeo.ecm.platform.picture.listener.PictureChangedListener"></listener>
+    <listener name="pictureViewsGenerationListener" enabled="false"
+      class="org.nuxeo.ecm.platform.picture.listener.PictureViewsGenerationListener"></listener>
+    <listener name="videoChangedListener" enabled="false" class="org.nuxeo.ecm.platform.video.listener.VideoChangedListener"></listener>
+    <listener name="videoAutomaticConversions" enabled="false"
+      class="org.nuxeo.ecm.platform.video.listener.VideoAutomaticConversionListener"></listener>
+
+  </extension>
+  -->
+
+</component>

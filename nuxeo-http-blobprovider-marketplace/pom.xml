@@ -3,8 +3,7 @@
   <parent>
     <groupId>org.nuxeo.http.blobprovider</groupId>
     <artifactId>nuxeo-http-blobprovider-parent</artifactId>
-    <version>8.3-SNAPSHOT</version>
-    <relativePath>../pom.xml</relativePath>
+    <version>8.10-SNAPSHOT</version>
   </parent>
 
   <artifactId>nuxeo-http-blobprovider-mp</artifactId>
@@ -15,12 +14,12 @@
     <!-- Base distribution(s) for the MP -->
     <dependency>
       <groupId>org.nuxeo.ecm.distribution</groupId>
-      <artifactId>nuxeo-distribution-cap</artifactId>
+      <artifactId>nuxeo-nxr-server</artifactId>
       <type>pom</type>
     </dependency>
     <dependency>
       <groupId>org.nuxeo.ecm.distribution</groupId>
-      <artifactId>nuxeo-distribution-cap</artifactId>
+      <artifactId>nuxeo-nxr-server</artifactId>
       <type>zip</type>
       <scope>provided</scope>
     </dependency>
@@ -29,7 +28,6 @@
     <dependency>
       <groupId>org.nuxeo.http.blobprovider</groupId>
       <artifactId>nuxeo-http-blobprovider-core</artifactId>
-      <version>8.3-SNAPSHOT</version>
     </dependency>
   </dependencies>
 

@@ -10,14 +10,28 @@
 			<property name="preventUserUpdate">true</property>
 
 			<!-- origin must contain the protocol: http://my.wite.com for example -->
+      
 			<property name="origin">${http.blobprovider.origin:=}</property>
+      
+            <!-- 
+            <property name="origin">http://dam.nuxeo.com</property>
+            -->
+      
 			<!-- So far, current implementation supports "Basic" only. Leave empty 
 				or set to "none" if there is no authentication -->
 			<property name="authenticationType">${http.blobprovider.auth.type:=}</property>
 			<!-- For Basic authentication, the user and password -->
+      <!-- 
 			<property name="login">${http.blobprovider.auth.login:=}</property>
 			<property name="password">${http.blobprovider.auth.password:=}
 			</property>
+      -->
+      
+      <property name="login">Administrator</property>
+      <property name="password">Nuxeo2015
+      </property>
+      
+      
 			<!-- Add any extra headers required by the server. They must be hard-coded 
 				and are not calculated at runtime -->
 			<property name="moreHeadersJson">${http.blobprovider.auth.moreheaders:=}

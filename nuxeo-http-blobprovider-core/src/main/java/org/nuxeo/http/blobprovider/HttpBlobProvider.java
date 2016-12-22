@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2015 Nuxeo SA (http://nuxeo.com/) and contributors.
+ * (C) Copyright 2016 Nuxeo SA (http://nuxeo.com/) and contributors.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the GNU Lesser General Public License
@@ -52,19 +52,23 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 /**
- * Handle a blob living on a remote HTTP server, in read-only (no write to the server, no synchronization)
+ * Handle a blob living on a remote HTTP server, in read-only (no write to the
+ * server, no synchronization)
  * <p>
- * Nuxeo will handle the blob as if it was living in its own blob store: Thumbnail, full text, video storyboard, ...
+ * Nuxeo will handle the blob as if it was living in its own blob store:
+ * Thumbnail, full text, video storyboard, ...
  * <p>
  * First implementation: Support unauthenticated URLs or BASIC authentication
  * <p>
- * Because we don't redirect the URL (we don't override <code>getURI()</code>), any download will fetch the file on the
- * remote server => We should have some cache mechanism for optimization, instead of downloading the file from the
- * distant url. This cache should be an option though, because in some application, the distant server wants to keep
- * track of all the downloads, etc.
+ * Because we don't redirect the URL (we don't override <code>getURI()</code>),
+ * any download will fetch the file on the remote server => We should have some
+ * cache mechanism for optimization, instead of downloading the file from the
+ * distant url. This cache should be an option though, because in some
+ * application, the distant server wants to keep track of all the downloads,
+ * etc.
  * <p>
- * There is one default blob provider, named "http", contributed by the plug-in. It is ready to use configuraiton
- * parameters stored in nuxeo.conf file:
+ * There is one default blob provider, named "http", contributed by the plug-in.
+ * It is ready to use configuraiton parameters stored in nuxeo.conf file:
  * <ul>
  * <li>http.blobprovider.origin<br/>
  * Notice this parameter must also contains the protocol</li>
@@ -73,565 +77,613 @@ import java.util.Map.Entry;
  * <li>http.blobprovider.auth.password</li>
  * <li>http.blobprovider.auth.moreHeadersJson</li>
  * </ul>
- * So you can just put these parameters in your configuration and it will work as expected.
+ * So you can just put these parameters in your configuration and it will work
+ * as expected.
  * <p>
- * To setup another http-blob provider, contribute the same extension and change the name ("my-http") and the
- * properties. You can use the same mechanism as in the default provider, and set up a property with a configuration
- * parameter using the following expression:
- * 
+ * To setup another http-blob provider, contribute the same extension and change
+ * the name ("my-http") and the properties. You can use the same mechanism as in
+ * the default provider, and set up a property with a configuration parameter
+ * using the following expression:
+ *
  * <pre>
  * <property name="origin">${my.other.provider.origin:=}</property>
  * </pre>
- * 
- * Just stating the obvious: You can't add a property that is not used here. The current implementation supports the
- * properties listed above (origin, authentication type, ...). Well, you cn add it, it will just be ignored :->
+ *
+ * Just stating the obvious: You can't add a property that is not used here. The
+ * current implementation supports the properties listed above (origin,
+ * authentication type, ...). Well, you cn add it, it will just be ignored :->
  * <p>
- * Also, notice that by default a blob provider allows connection to domains that are not the one set in the "origin"
- * property. In this case, the provider assumes the call is always unauthenticated. So for example, if your
- * contributions has the <code><property name="origin">http://my.site.com</property></code> property and you use an url
- * like "http://somethingelse.com/thefile.pdf", then the provider will try to get the file with no authentication.
+ * Also, notice that by default a blob provider allows connection to domains
+ * that are not the one set in the "origin" property. In this case, the provider
+ * assumes the call is always unauthenticated. So for example, if your
+ * contributions has the
+ * <code><property name="origin">http://my.site.com</property></code> property
+ * and you use an url like "http://somethingelse.com/thefile.pdf", then the
+ * provider will try to get the file with no authentication.
  * <p>
- * In this example, if you need to access "thefile.pdf" and the site requires authentication, you must declare another
- * http blob provider
- * 
+ * In this example, if you need to access "thefile.pdf" and the site requires
+ * authentication, you must declare another http blob provider
+ *
  * @since 8.1
  */
 public class HttpBlobProvider extends AbstractBlobProvider {
 
-    @SuppressWarnings("unused")
-    private static final Log log = LogFactory.getLog(HttpBlobProvider.class);
+	@SuppressWarnings("unused")
+	private static final Log log = LogFactory.getLog(HttpBlobProvider.class);
 
-    // <-------------------- Configuration Parameters -------------------->
-    // Names (keys) of the default parameters, as used in the default xml contribution.
-    // as a user of the blob provider, you are supposed to:
-    // -> Setup the correct XML contribution to BlobProvider
-    // -> And either hard code the values or use you own configuration parameters
-    public static final String KEY_ORIGIN = "http.blobprovider.origin";
+	// <-------------------- Configuration Parameters -------------------->
+	// Names (keys) of the default parameters, as used in the default xml
+	// contribution.
+	// as a user of the blob provider, you are supposed to:
+	// -> Setup the correct XML contribution to BlobProvider
+	// -> And either hard code the values or use you own configuration
+	// parameters
+	public static final String KEY_ORIGIN = "http.blobprovider.origin";
 
-    public static final String KEY_AUTHENTICATION_TYPE = "http.blobprovider.auth.type";
+	public static final String KEY_AUTHENTICATION_TYPE = "http.blobprovider.auth.type";
 
-    public static final String KEY_AUTHENTICATION_LOGIN = "http.blobprovider.auth.login";
+	public static final String KEY_AUTHENTICATION_LOGIN = "http.blobprovider.auth.login";
 
-    public static final String KEY_AUTHENTICATION_PWD = "http.blobprovider.auth.password";
+	public static final String KEY_AUTHENTICATION_PWD = "http.blobprovider.auth.password";
 
-    public static final String KEY_AUTHENTICATION_MORE_HEADERS = "http.blobprovider.moreheaders";
+	public static final String KEY_AUTHENTICATION_MORE_HEADERS = "http.blobprovider.moreheaders";
 
-    public static final String KEY_AUTHENTICATION_USE_CACHE = "http.blobprovider.usecache";
+	public static final String KEY_AUTHENTICATION_USE_CACHE = "http.blobprovider.usecache";
 
-    public static final String KEY_AUTHENTICATION_CACHE_MAX_SIZE = "http.blobprovider.cache.maxSize";
+	public static final String KEY_AUTHENTICATION_CACHE_MAX_SIZE = "http.blobprovider.cache.maxSize";
 
-    public static final String KEY_AUTHENTICATION_CACHE_MAX_COUNT = "http.blobprovider.cache.maxCount";
+	public static final String KEY_AUTHENTICATION_CACHE_MAX_COUNT = "http.blobprovider.cache.maxCount";
 
-    public static final String KEY_AUTHENTICATION_CACHE_MIN_AGE = "http.blobprovider.cache.minAge";
+	public static final String KEY_AUTHENTICATION_CACHE_MIN_AGE = "http.blobprovider.cache.minAge";
 
-    // <-------------------- Names of properties in the XML -------------------->
-    public static final String PROPERTY_ORIGIN = "origin";
+	// <-------------------- Names of properties in the XML
+	// -------------------->
+	public static final String PROPERTY_ORIGIN = "origin";
 
-    public static final String PROPERTY_AUTHENTICATION_TYPE = "authenticationType";
+	public static final String PROPERTY_AUTHENTICATION_TYPE = "authenticationType";
 
-    public static final String PROPERTY_LOGIN = "login";
+	public static final String PROPERTY_LOGIN = "login";
 
-    public static final String PROPERTY_PWD = "password";
+	public static final String PROPERTY_PWD = "password";
 
-    public static final String PROPERTY_MORE_HEADERS = "moreHeadersJson";
+	public static final String PROPERTY_MORE_HEADERS = "moreHeadersJson";
 
-    public static final String PROPERTY_USE_CACHE = "useCache";
+	public static final String PROPERTY_USE_CACHE = "useCache";
 
-    public static final String PROPERTY_CACHE_MAX_SIZE = "cacheMaxSize";
+	public static final String PROPERTY_CACHE_MAX_SIZE = "cacheMaxSize";
 
-    public static final String PROPERTY_CACHE_MAX_COUNT = "cacheMaxCount";
+	public static final String PROPERTY_CACHE_MAX_COUNT = "cacheMaxCount";
 
-    public static final String PROPERTY_CACHE_MIN_AGE = "cacheMinAge";
+	public static final String PROPERTY_CACHE_MIN_AGE = "cacheMinAge";
 
-    // <-------------------- Other constants -------------------->
-    protected static final String AUTH_NONE = "None";
+	// <-------------------- Other constants -------------------->
+	protected static final String AUTH_NONE = "None";
 
-    protected static final String AUTH_BASIC = "Basic";
+	protected static final String AUTH_BASIC = "Basic";
 
-    public static final String[] SUPPORTED_AUTHENTICATION_METHODS = { AUTH_NONE, AUTH_BASIC };
+	public static final String[] SUPPORTED_AUTHENTICATION_METHODS = { AUTH_NONE, AUTH_BASIC };
 
-    public static final String DEFAULT_PROVIDER = "http";
+	public static final String DEFAULT_PROVIDER = "http";
 
-    public static final long DEFAULT_CACHE_MAX_FILE_SIZE = 500 * 1024 * 1024;
+	public static final long DEFAULT_CACHE_MAX_FILE_SIZE = 500 * 1024 * 1024;
 
-    public static final long DEFAULT_CACHE_MAX_COUNT = 10000;
+	public static final long DEFAULT_CACHE_MAX_COUNT = 10000;
 
-    public static final long DEFAULT_CACHE_MIN_AGE = 3600; // 1h
+	public static final long DEFAULT_CACHE_MIN_AGE = 3600; // 1h
 
-    // <-------------------- Implementation -------------------->
-    protected String origin;
+	// <-------------------- Implementation -------------------->
+	protected String origin;
 
-    protected String authenticationType;
+	protected String authenticationType;
 
-    protected String authenticationLogin;
+	protected String authenticationLogin;
 
-    protected String authenticationPwd;
+	protected String authenticationPwd;
 
-    protected String basicAuthentication;
+	protected String basicAuthentication;
 
-    protected HashMap<String, String> moreHeaders;
+	protected HashMap<String, String> moreHeaders;
 
-    protected File cachedir = null;
+	protected File cachedir = null;
 
-    protected FileCache fileCache = null;
+	protected FileCache fileCache = null;
 
-    // <============================================================================>
-    // <============================ NON PUBLIC METHODS ============================>
-    // <============================================================================>
-    /*
-     * Centralize handling of the key, that mixes the blobprovider Id and the URL
-     */
-    protected String extractUrl(ManagedBlob blob) {
+	// <============================================================================>
+	// <============================ NON PUBLIC METHODS
+	// ============================>
+	// <============================================================================>
+	/*
+	 * Centralize handling of the key, that mixes the blobprovider Id and the
+	 * URL
+	 */
+	protected String extractUrl(ManagedBlob blob) {
 
-        String key = blob.getKey();
-        // strip prefix
-        int colon = key.indexOf(':');
-        if (colon >= 0 && key.substring(0, colon).equals(blobProviderId)) {
-            key = key.substring(colon + 1);
-        }
+		String key = blob.getKey();
+		// strip prefix
+		int colon = key.indexOf(':');
+		if (colon >= 0 && key.substring(0, colon).equals(blobProviderId)) {
+			key = key.substring(colon + 1);
+		}
 
-        return key;
-    }
+		return key;
+	}
 
-    /*
-     * Here, we just make sure every variable is not null, so we can easily use theValue.equals() everywhere for
-     * example.We also realign values to get rid of case-sensitive comparison errors and be cool with the users of the
-     * extension point ;-)
-     */
-    protected void setupFromProperties() throws JSONException {
-
-        // <-------------------- Load from the configuration -------------------->
-        authenticationType = properties.get(PROPERTY_AUTHENTICATION_TYPE);
-        authenticationType = StringUtils.isBlank(authenticationType) ? "" : authenticationType;
-
-        origin = properties.get(PROPERTY_ORIGIN);
-        origin = StringUtils.isBlank(origin) ? "" : origin;
-        // When checking if the file's url is ok, we want to get rid of the case.
-        origin = origin.toLowerCase();
-
-        authenticationLogin = properties.get(PROPERTY_LOGIN);
-        authenticationLogin = StringUtils.isBlank(authenticationLogin) ? "" : authenticationLogin;
-
-        authenticationPwd = properties.get(PROPERTY_PWD);
-        authenticationPwd = StringUtils.isBlank(authenticationPwd) ? "" : authenticationPwd;
-
-        String moreHeadersJson = properties.get(PROPERTY_MORE_HEADERS);
-        moreHeadersJson = StringUtils.isBlank(moreHeadersJson) ? "" : moreHeadersJson;
-
-        // <-------------------- Realign etc. -------------------->
-        if (authenticationType.toLowerCase().equals(AUTH_NONE.toLowerCase())) {
-            authenticationType = AUTH_NONE;
-        } else if (authenticationType.toLowerCase().equals(AUTH_BASIC.toLowerCase())) {
-            authenticationType = AUTH_BASIC;
-
-            String authString = authenticationLogin + ":" + authenticationPwd;
-            basicAuthentication = "Basic " + new String(Base64.encodeBase64(authString.getBytes()));
-        }
-
-        moreHeaders = new HashMap<String, String>();
-        if (!moreHeadersJson.isEmpty()) {
-            JSONArray array = new JSONArray(moreHeadersJson);
-            int max = array.length();
-            JSONObject obj;
-            for (int i = 0; i < max; ++i) {
-                obj = array.getJSONObject(i);
-                moreHeaders.put(obj.getString("key"), obj.getString("value"));
-            }
-        }
-        if (moreHeaders != null) {
-            moreHeadersJson = "zou";
-        }
-
-    }
-
-    protected void setupCache() throws IOException {
-
-        boolean useCache;
-
-        String str = properties.get(PROPERTY_USE_CACHE);
-        useCache = StringUtils.isNotBlank(str) && str.toLowerCase().equals("true");
-
-        if (useCache) {
-            String name = StringUtils.replace(blobProviderId, " ", "") + "_cache";
-            cachedir = Framework.createTempFile(name, "");
-            cachedir.delete();
-            cachedir.mkdir();
-
-            long maxSize = getLongFromProperties(PROPERTY_CACHE_MAX_SIZE, DEFAULT_CACHE_MAX_FILE_SIZE);
-            long maxCount = getLongFromProperties(PROPERTY_CACHE_MAX_COUNT, DEFAULT_CACHE_MAX_COUNT);
-            long minAge = getLongFromProperties(PROPERTY_CACHE_MIN_AGE, DEFAULT_CACHE_MIN_AGE);
-
-            fileCache = new LRUFileCache(cachedir, maxSize, maxCount, minAge);
-
-            // be sure FileTracker won't steal our files!
-            FileEventTracker.registerProtectedPath(cachedir.getAbsolutePath());
-        }
-    }
-
-    protected long getLongFromProperties(String key, long defaultValue) {
-
-        long value;
-        String str = properties.get(key);
-
-        try {
-            value = Long.parseLong(str);
-        } catch (NumberFormatException e) {
-            value = -1;
-        }
-
-        if (value <= 0) {
-            value = defaultValue;
-        }
-
-        return value;
-    }
-
-    /*
-     * Just a centralization of adding the headers if needed.
-     */
-    protected void addHeaders(HttpURLConnection connection, String urlStr) {
-
-        // No authentication type or not the original domain => Assume the url does not require authentication.
-        // Else => authentication
-        if (StringUtils.isNotBlank(origin) && urlStr.toLowerCase().startsWith(origin)) {
-
-            switch (authenticationType) {
-            case AUTH_BASIC:
-                connection.setRequestProperty("Authorization", basicAuthentication);
-                break;
-
-            // . . . Other cases . . .
-            }
-        }
-
-        if (moreHeaders.size() > 0) {
-            for (Entry<String, String> entry : moreHeaders.entrySet()) {
-                connection.setRequestProperty(entry.getKey(), entry.getValue());
-            }
-        }
-    }
-
-    protected boolean isBasicAuthentication() {
-        return StringUtils.isNotBlank(authenticationType) && authenticationType.equals(AUTH_BASIC);
-    }
-
-    protected boolean isNoAuthentication() {
-        return StringUtils.isBlank(authenticationType) || authenticationType.equals(AUTH_NONE);
-    }
-
-    // <============================================================================>
-    // <============================== PUBLIC METHODS ==============================>
-    // <============================================================================>
-
-    @Override
-    public void initialize(String blobProviderId, Map<String, String> properties) throws IOException {
-        super.initialize(blobProviderId, properties);
-
-        try {
-            setupFromProperties();
-            setupCache();
-        } catch (JSONException e) {
-            throw new IOException("Failed to load extra headers from the configuration", e);
-        }
-    }
-
-    @Override
-    public void close() {
-
-        if (fileCache != null) {
-            fileCache.clear();
-        }
-
-        if (cachedir != null) {
-            try {
-                FileUtils.deleteDirectory(cachedir);
-            } catch (IOException e) {
-                throw new NuxeoException(e);
-            }
-        }
-    }
-
-    @Override
-    public Blob readBlob(BlobInfo blobInfo) throws IOException {
-        return new SimpleManagedBlob(blobInfo);
-    }
-
-    @Override
-    public InputStream getStream(ManagedBlob blob) throws IOException {
-
-        InputStream stream = null;
-
-        String digest = null;
-        // Using cache: Either get the file from the cache or download it and add it to the cache
-        // TODO: If the file is not in the cache, let's put it later, in another thread, asynchronously
-        // so we don't delay the download form the client
-
-        if (fileCache != null) {
-            digest = blob.getDigest();
-            if (digest == null) {
-                throw new NuxeoException("This blob has no digest: " + blob.getKey());
-            }
-            File file = fileCache.getFile(digest);
-            if (file == null) {
-                Blob downloaded = downloadFile(blob);
-                file = downloaded.getFile();
-                fileCache.putFile(digest, file);
-                file = fileCache.getFile(digest);
-            }
-            stream = new FileInputStream(file);
-
-        } else {
-            // Not using the cache: Just get the file from the http stream.
-            String urlStr = extractUrl(blob);
-            try {
-                URL url = new URL(urlStr);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-                addHeaders(connection, urlStr);
-
-                stream = connection.getInputStream();
-
-            } catch (MalformedURLException e) {
-                throw new NuxeoException("Fatal protocol violation", e);
-            } catch (IOException e) {
-                throw new IOException("Fatal transport error", e);
-            } finally {
-            }
-        }
-
-        return stream;
-
-    }
-
-    /**
-     * Downloads the remote data, returns a temp. blob, with ".tmp" as file extension
-     * <p>
-     * (used by unit tests so far)
-     * 
-     * @param blob
-     * @return the downloaded blob
-     * @throws IOException
-     * @since 8.1
-     */
-    public Blob downloadFile(ManagedBlob blob) throws IOException {
-
-        Blob result = null;
-
-        String urlStr = extractUrl(blob);
-
-        URL url = new URL(urlStr);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-        addHeaders(connection, urlStr);
-
-        String fileName = blob.getFilename();
-        String mimeType = blob.getMimeType();
-
-        result = Blobs.createBlobWithExtension(".tmp");
-        FileOutputStream outputStream = new FileOutputStream(result.getFile());
-        InputStream inputStream = connection.getInputStream();
-        int bytesRead = -1;
-        byte[] buffer = new byte[10240];
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, bytesRead);
-        }
-        outputStream.close();
-        inputStream.close();
-
-        result.setFilename(fileName);
-        result.setMimeType(mimeType);
-
-        return result;
-    }
-
-    /**
-     * This class does no support user updates, whatever the value of the "preventUserUpdate" property.
-     */
-    @Override
-    public boolean supportsUserUpdate() {
-        return false; // supportsUserUpdateDefaultFalse();
-    }
-
-    /**
-     * This class does not support writing a blob and always throws an exception
-     */
-    @Override
-    public String writeBlob(Blob blob, Document doc) throws IOException {
-        throw new UnsupportedOperationException("Writing a blob is not supported");
-    }
-
-    /**
-     * Creates a blob whose key is the remote URL
-     * <p>
-     * <b>IMPORTANT</b>:
-     * <ul>
-     * <li>The <code>blobInfo.key</code> field will be replaced by the provider's own key scheme</li>
-     * <li>blobInfo <i>must</i> contain the mime type and the filename. If they don't, the code tries to guess the
-     * values by sending a HEAD request. If this fails, an error is thrown.</li>
-     * </ul>
-     * <p>
-     * The passed {@link BlobInfo} contains information about the blob
-     * <p>
-     * <p>
-     * A future improvement would be to allow just a URL and using HEAD request maybe to fetch the infos (mime type,
-     * lenght, file name, ...)
-     *
-     * @param blobInfo the blob info where the key is the URL
-     * @return the blob
-     */
-    public ManagedBlob createBlob(BlobInfo blobInfo) throws IOException {
-
-        String url = blobInfo.key;
-
-        BlobInfo newInfo = new BlobInfo(blobInfo);
-        newInfo.key = blobProviderId + ":" + url;
-
-        if (StringUtils.isBlank(newInfo.mimeType) || StringUtils.isBlank(newInfo.filename)) {
-
-            BlobInfo guessedInfo = guessInfosFromURL(url);
-
-            if (guessedInfo == null || newInfo.mimeType == null || newInfo.filename == null) {
-                throw new NuxeoException("BlobInfo with no mime type or no file name, and could not guess them.");
-            }
-
-            newInfo.mimeType = guessedInfo.mimeType == null ? newInfo.mimeType : guessedInfo.mimeType;
-            newInfo.filename = guessedInfo.filename == null ? newInfo.filename : guessedInfo.filename;
-            newInfo.encoding = guessedInfo.encoding == null ? newInfo.encoding : guessedInfo.encoding;
-        }
-
-        if (newInfo.length == null) {
-            // Default widgets in the UI activate a link if the length is >= 0 (see extended_file_widget.xhtml)
-            newInfo.length = 0L;
-        }
-
-        if (StringUtils.isBlank(newInfo.digest)) {
-            newInfo.digest = DigestUtils.md5Hex(url);
-        }
-        if (StringUtils.isBlank(newInfo.encoding)) {
-            newInfo.encoding = null;
-        }
-
-        return new SimpleManagedBlob(newInfo);
-    }
-
-    /**
-     * Tests the URL (stored in the blob key) using a HEAD http verb, and adding authentication if needed.
-     * 
-     * @param blob
-     * @return true if the URL can be reached with no error
-     * @since 8.1
-     */
-    public boolean urlLooksValid(ManagedBlob blob) {
-
-        String urlStr = extractUrl(blob);
-
-        return urlLooksValid(urlStr);
-    }
-
-    /**
-     * Tests the URL using a HEAD http verb, and adding authentication if needed.
-     * 
-     * @param urlStr
-     * @return true if the URL can be reached with no error
-     * @since 8.1
-     */
-    public boolean urlLooksValid(String urlStr) {
-
-        boolean looksOk = false;
-        try {
-            URL url = new URL(urlStr);
-            HttpURLConnection huc = (HttpURLConnection) url.openConnection();
-
-            addHeaders(huc, urlStr);
-
-            huc.setRequestMethod("HEAD");
-            int responseCode = huc.getResponseCode();
-            looksOk = responseCode == HttpURLConnection.HTTP_OK;
-
-        } catch (Exception e) { // Whatever the error, we fail. No need to be granular here.
-            looksOk = false;
-        }
-
-        return looksOk;
-    }
-
-    /**
-     * Sends a HEAD request to get the info without downloading the file.
-     * <p>
-     * If an error occurs, returns null.
-     * 
-     * @param urlStr
-     * @return the BlobInfo
-     * @since 8.1
-     */
-    public BlobInfo guessInfosFromURL(String urlStr) {
-
-        BlobInfo bi = null;
-        try {
-            URL url = new URL(urlStr);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-            addHeaders(connection, urlStr);
-
-            connection.setRequestMethod("HEAD");
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-
-                bi = new BlobInfo();
-
-                bi.mimeType = connection.getContentType();
-                // Remove possible ...;charset="something"
-                int idx = bi.mimeType.indexOf(";");
-                if (idx >= 0) {
-                    bi.mimeType = bi.mimeType.substring(0, idx);
-                }
-
-                bi.encoding = connection.getContentEncoding();
-                bi.length = connection.getContentLengthLong();
-                if (bi.length < 0) {
-                    bi.length = 0L;
-                }
-
-                String disposition = connection.getHeaderField("Content-Disposition");
-                String[] attributes = disposition.split(";");
-
-                for (String attr : attributes) {
-                    if (attr.toLowerCase().contains("filename=")) {
-                        attr = attr.trim();
-                        // Remove filename=
-                        String fileName = attr.substring(9);
-                        idx = fileName.indexOf("\"");
-                        if (idx > -1) {
-                            fileName = fileName.substring(idx + 1, fileName.lastIndexOf("\""));
-                        }
-                        bi.filename = fileName;
-
-                        break;
-                    }
-                }
-            }
-
-        } catch (Exception e) { // Whatever the error, we fail. No need to be granular here.
-            bi = null;
-        }
-
-        return bi;
-    }
-
-    public int getNumberOfCachedFiles() {
-        if (fileCache != null) {
-            return fileCache.getNumberOfItems();
-        }
-
-        return 0;
-    }
-    
-    public boolean isCached(ManagedBlob blob) {
-        if (fileCache != null && blob.getDigest() != null) {
-            return fileCache.getFile(blob.getDigest()) != null;
-        }
-        
-        return false;
-    }
+	/*
+	 * Here, we just make sure every variable is not null, so we can easily use
+	 * theValue.equals() everywhere for example.We also realign values to get
+	 * rid of case-sensitive comparison errors and be cool with the users of the
+	 * extension point ;-)
+	 */
+	protected void setupFromProperties() throws JSONException {
+
+		// <-------------------- Load from the configuration
+		// -------------------->
+		authenticationType = properties.get(PROPERTY_AUTHENTICATION_TYPE);
+		authenticationType = StringUtils.isBlank(authenticationType) ? "" : authenticationType;
+
+		origin = properties.get(PROPERTY_ORIGIN);
+		origin = StringUtils.isBlank(origin) ? "" : origin;
+		// When checking if the file's url is ok, we want to get rid of the
+		// case.
+		origin = origin.toLowerCase();
+
+		authenticationLogin = properties.get(PROPERTY_LOGIN);
+		authenticationLogin = StringUtils.isBlank(authenticationLogin) ? "" : authenticationLogin;
+
+		authenticationPwd = properties.get(PROPERTY_PWD);
+		authenticationPwd = StringUtils.isBlank(authenticationPwd) ? "" : authenticationPwd;
+
+		String moreHeadersJson = properties.get(PROPERTY_MORE_HEADERS);
+		moreHeadersJson = StringUtils.isBlank(moreHeadersJson) ? "" : moreHeadersJson;
+
+		// <-------------------- Realign etc. -------------------->
+		if (authenticationType.toLowerCase().equals(AUTH_NONE.toLowerCase())) {
+			authenticationType = AUTH_NONE;
+		} else if (authenticationType.toLowerCase().equals(AUTH_BASIC.toLowerCase())) {
+			authenticationType = AUTH_BASIC;
+
+			String authString = authenticationLogin + ":" + authenticationPwd;
+			basicAuthentication = "Basic " + new String(Base64.encodeBase64(authString.getBytes()));
+		}
+
+		moreHeaders = new HashMap<String, String>();
+		if (!moreHeadersJson.isEmpty()) {
+			JSONArray array = new JSONArray(moreHeadersJson);
+			int max = array.length();
+			JSONObject obj;
+			for (int i = 0; i < max; ++i) {
+				obj = array.getJSONObject(i);
+				moreHeaders.put(obj.getString("key"), obj.getString("value"));
+			}
+		}
+
+	}
+
+	protected void setupCache() throws IOException {
+
+		boolean useCache;
+
+		String str = properties.get(PROPERTY_USE_CACHE);
+		useCache = StringUtils.isNotBlank(str) && str.toLowerCase().equals("true");
+
+		if (useCache) {
+			String name = StringUtils.replace(blobProviderId, " ", "") + "_cache";
+			cachedir = Framework.createTempFile(name, "");
+			cachedir.delete();
+			cachedir.mkdir();
+
+			long maxSize = getLongFromProperties(PROPERTY_CACHE_MAX_SIZE, DEFAULT_CACHE_MAX_FILE_SIZE);
+			long maxCount = getLongFromProperties(PROPERTY_CACHE_MAX_COUNT, DEFAULT_CACHE_MAX_COUNT);
+			long minAge = getLongFromProperties(PROPERTY_CACHE_MIN_AGE, DEFAULT_CACHE_MIN_AGE);
+
+			fileCache = new LRUFileCache(cachedir, maxSize, maxCount, minAge);
+
+			// be sure FileTracker won't steal our files!
+			FileEventTracker.registerProtectedPath(cachedir.getAbsolutePath());
+		}
+	}
+
+	protected long getLongFromProperties(String key, long defaultValue) {
+
+		long value;
+		String str = properties.get(key);
+
+		try {
+			value = Long.parseLong(str);
+		} catch (NumberFormatException e) {
+			value = -1;
+		}
+
+		if (value <= 0) {
+			value = defaultValue;
+		}
+
+		return value;
+	}
+
+	/*
+	 * Just a centralization of adding the headers if needed.
+	 */
+	protected void addHeaders(HttpURLConnection connection, String urlStr) {
+
+		// No authentication type or not the original domain => Assume the url
+		// does not require authentication.
+		// Else => authentication
+		if (StringUtils.isNotBlank(origin) && urlStr.toLowerCase().startsWith(origin)) {
+
+			switch (authenticationType) {
+			case AUTH_BASIC:
+				connection.setRequestProperty("Authorization", basicAuthentication);
+				break;
+
+			// . . . Other cases . . .
+			}
+		}
+
+		if (moreHeaders.size() > 0) {
+			for (Entry<String, String> entry : moreHeaders.entrySet()) {
+				connection.setRequestProperty(entry.getKey(), entry.getValue());
+			}
+		}
+	}
+
+	protected boolean isBasicAuthentication() {
+		return StringUtils.isNotBlank(authenticationType) && authenticationType.equals(AUTH_BASIC);
+	}
+
+	protected boolean isNoAuthentication() {
+		return StringUtils.isBlank(authenticationType) || authenticationType.equals(AUTH_NONE);
+	}
+
+	// <============================================================================>
+	// <============================== PUBLIC METHODS
+	// ==============================>
+	// <============================================================================>
+
+	@Override
+	public void initialize(String blobProviderId, Map<String, String> properties) throws IOException {
+		super.initialize(blobProviderId, properties);
+
+		try {
+			setupFromProperties();
+			setupCache();
+		} catch (JSONException e) {
+			throw new IOException("Failed to load extra headers from the configuration", e);
+		}
+	}
+
+	@Override
+	public void close() {
+
+		if (fileCache != null) {
+			fileCache.clear();
+		}
+
+		if (cachedir != null) {
+			try {
+				FileUtils.deleteDirectory(cachedir);
+			} catch (IOException e) {
+				throw new NuxeoException(e);
+			}
+		}
+	}
+
+	@Override
+	public Blob readBlob(BlobInfo blobInfo) throws IOException {
+		return new SimpleManagedBlob(blobInfo);
+	}
+
+	@Override
+	public InputStream getStream(ManagedBlob blob) throws IOException {
+
+		InputStream stream = null;
+
+		String digest = null;
+		// Using cache: Either get the file from the cache or download it and
+		// add it to the cache
+		// TODO: If the file is not in the cache, let's put it later, in another
+		// thread, asynchronously
+		// so we don't delay the download form the client
+
+		if (fileCache != null) {
+			digest = blob.getDigest();
+			if (digest == null) {
+				throw new NuxeoException("This blob has no digest: " + blob.getKey());
+			}
+			File file = fileCache.getFile(digest);
+			if (file == null) {
+				Blob downloaded = downloadFile(blob);
+				file = downloaded.getFile();
+				fileCache.putFile(digest, file);
+				file = fileCache.getFile(digest);
+			}
+			stream = new FileInputStream(file);
+
+		} else {
+			// Not using the cache: Just get the file from the http stream.
+			String urlStr = extractUrl(blob);
+			try {
+				URL url = new URL(urlStr);
+				HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+				addHeaders(connection, urlStr);
+
+				stream = connection.getInputStream();
+
+			} catch (MalformedURLException e) {
+				throw new NuxeoException("Fatal protocol violation", e);
+			} catch (IOException e) {
+				throw new IOException("Fatal transport error", e);
+			} finally {
+			}
+		}
+
+		return stream;
+
+	}
+
+	/**
+	 * Downloads the remote data, returns a temp. blob, with ".tmp" as file
+	 * extension
+	 * <p>
+	 * (used by unit tests so far)
+	 *
+	 * @param blob
+	 * @return the downloaded blob
+	 * @throws IOException
+	 * @since 8.1
+	 */
+	public Blob downloadFile(ManagedBlob blob) throws IOException {
+
+		Blob result = null;
+
+		String urlStr = extractUrl(blob);
+
+		URL url = new URL(urlStr);
+		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+		addHeaders(connection, urlStr);
+
+		String fileName = blob.getFilename();
+		String mimeType = blob.getMimeType();
+
+		result = Blobs.createBlobWithExtension(".tmp");
+		FileOutputStream outputStream = new FileOutputStream(result.getFile());
+		InputStream inputStream = connection.getInputStream();
+		int bytesRead = -1;
+		byte[] buffer = new byte[10240];
+		while ((bytesRead = inputStream.read(buffer)) != -1) {
+			outputStream.write(buffer, 0, bytesRead);
+		}
+		outputStream.close();
+		inputStream.close();
+
+		result.setFilename(fileName);
+		result.setMimeType(mimeType);
+
+		return result;
+	}
+
+	/**
+	 * This class does no support user updates, whatever the value of the
+	 * "preventUserUpdate" property.
+	 */
+	@Override
+	public boolean supportsUserUpdate() {
+		return false; // supportsUserUpdateDefaultFalse();
+	}
+
+	/**
+	 * This class does not support writing a blob and always throws an exception
+	 */
+	@Override
+	public String writeBlob(Blob blob, Document doc) throws IOException {
+		throw new UnsupportedOperationException("Writing a blob is not supported");
+	}
+
+	/**
+	 * Creates a blob whose key is the remote URL
+	 * <p>
+	 * <b>IMPORTANT</b>:
+	 * <ul>
+	 * <li>The <code>blobInfo.key</code> field will be replaced by the
+	 * provider's own key scheme</li>
+	 * <li>blobInfo <i>must</i> contain the mime type and the filename. If they
+	 * don't, the code tries to guess the values by sending a HEAD request. If
+	 * this fails, an error is thrown.</li>
+	 * </ul>
+	 * <p>
+	 * The passed {@link BlobInfo} contains information about the blob
+	 * <p>
+	 * <p>
+	 * A future improvement would be to allow just a URL and using HEAD request
+	 * maybe to fetch the infos (mime type, lenght, file name, ...)
+	 *
+	 * @param blobInfo
+	 *            the blob info where the key is the URL
+	 * @return the blob
+	 */
+	public ManagedBlob createBlob(BlobInfo blobInfo) throws IOException {
+
+		String url = blobInfo.key;
+
+		BlobInfo newInfo = new BlobInfo(blobInfo);
+		newInfo.key = blobProviderId + ":" + url;
+
+		if (StringUtils.isBlank(newInfo.mimeType) || StringUtils.isBlank(newInfo.filename)) {
+
+			BlobInfo guessedInfo = guessInfosFromURL(url);
+
+			if (guessedInfo == null || newInfo.mimeType == null || newInfo.filename == null) {
+				throw new NuxeoException("BlobInfo with no mime type or no file name, and could not guess them.");
+			}
+
+			newInfo.mimeType = guessedInfo.mimeType == null ? newInfo.mimeType : guessedInfo.mimeType;
+			newInfo.filename = guessedInfo.filename == null ? newInfo.filename : guessedInfo.filename;
+			newInfo.encoding = guessedInfo.encoding == null ? newInfo.encoding : guessedInfo.encoding;
+		}
+
+		if (newInfo.length == null) {
+			// Default widgets in the UI activate a link if the length is >= 0
+			// (see extended_file_widget.xhtml)
+			newInfo.length = 0L;
+		}
+
+		if (StringUtils.isBlank(newInfo.digest)) {
+			newInfo.digest = DigestUtils.md5Hex(url);
+		}
+		if (StringUtils.isBlank(newInfo.encoding)) {
+			newInfo.encoding = null;
+		}
+
+		return new SimpleManagedBlob(newInfo);
+	}
+
+	/**
+	 * Tests the URL (stored in the blob key) using a HEAD http verb, and adding
+	 * authentication if needed.
+	 *
+	 * @param blob
+	 * @return true if the URL can be reached with no error
+	 * @since 8.1
+	 */
+	public boolean urlLooksValid(ManagedBlob blob) {
+
+		String urlStr = extractUrl(blob);
+
+		return urlLooksValid(urlStr);
+	}
+
+	/**
+	 * Tests the URL using a HEAD http verb, and adding authentication if
+	 * needed.
+	 *
+	 * @param urlStr
+	 * @return true if the URL can be reached with no error
+	 * @since 8.1
+	 */
+	public boolean urlLooksValid(String urlStr) {
+
+		boolean looksOk = false;
+		try {
+			URL url = new URL(urlStr);
+			HttpURLConnection huc = (HttpURLConnection) url.openConnection();
+
+			addHeaders(huc, urlStr);
+
+			huc.setRequestMethod("HEAD");
+			int responseCode = huc.getResponseCode();
+			looksOk = responseCode == HttpURLConnection.HTTP_OK;
+
+		} catch (Exception e) { // Whatever the error, we fail. No need to be
+								// granular here.
+			looksOk = false;
+		}
+
+		return looksOk;
+	}
+
+	/**
+	 * Sends a HEAD request to get the info without downloading the file.
+	 * <p>
+	 * If an error occurs, returns null.
+	 *
+	 * @param urlStr
+	 * @return the BlobInfo
+	 * @since 8.1
+	 */
+	public BlobInfo guessInfosFromURL(String urlStr) {
+
+		BlobInfo bi = null;
+		String attrLowerCase;
+		try {
+			URL url = new URL(urlStr);
+			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+			addHeaders(connection, urlStr);
+
+			connection.setRequestMethod("HEAD");
+			int responseCode = connection.getResponseCode();
+			if (responseCode == HttpURLConnection.HTTP_OK) {
+
+				bi = new BlobInfo();
+
+				bi.mimeType = connection.getContentType();
+				// Remove possible ...;charset="something"
+				int idx = bi.mimeType.indexOf(";");
+				if (idx >= 0) {
+					bi.mimeType = bi.mimeType.substring(0, idx);
+				}
+
+				bi.encoding = connection.getContentEncoding();
+				bi.length = connection.getContentLengthLong();
+				if (bi.length < 0) {
+					bi.length = 0L;
+				}
+
+				String disposition = connection.getHeaderField("Content-Disposition");
+				String fileName = null;
+				if (disposition != null) {
+					String[] attributes = disposition.split(";");
+
+					for (String attr : attributes) {
+						attrLowerCase = attr.toLowerCase();
+						if (attrLowerCase.contains("filename=")) {
+							attr = attr.trim();
+							// Remove filename=
+							fileName = attr.substring(9);
+							idx = fileName.indexOf("\"");
+							if (idx > -1) {
+								fileName = fileName.substring(idx + 1, fileName.lastIndexOf("\""));
+							}
+							bi.filename = fileName;
+							break;
+
+						} else if (attrLowerCase.contains("filename*=utf-8''")) {
+							attr = attr.trim();
+							// Remove filename=
+							fileName = attr.substring(17);
+							idx = fileName.indexOf("\"");
+							if (idx > -1) {
+								fileName = fileName.substring(idx + 1, fileName.lastIndexOf("\""));
+							}
+							fileName = java.net.URLDecoder.decode(fileName, "UTF-8");
+							bi.filename = fileName;
+							break;
+						}
+					}
+				} else {
+					// Try from the url
+					idx = urlStr.lastIndexOf("/");
+					if (idx > -1) {
+						fileName = urlStr.substring(idx + 1);
+						bi.filename = java.net.URLDecoder.decode(fileName, "UTF-8");
+					}
+				}
+			}
+
+		} catch (Exception e) { // Whatever the error, we fail. No need to be
+								// granular here.
+			bi = null;
+		}
+
+		return bi;
+	}
+
+	public int getNumberOfCachedFiles() {
+		if (fileCache != null) {
+			return fileCache.getNumberOfItems();
+		}
+
+		return 0;
+	}
+
+	public boolean isCached(ManagedBlob blob) {
+		if (fileCache != null && blob.getDigest() != null) {
+			return fileCache.getFile(blob.getDigest()) != null;
+		}
+
+		return false;
+	}
 
 }

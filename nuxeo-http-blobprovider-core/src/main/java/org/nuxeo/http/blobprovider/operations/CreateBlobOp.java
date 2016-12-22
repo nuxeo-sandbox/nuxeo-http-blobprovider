@@ -36,12 +36,12 @@ import org.nuxeo.http.blobprovider.HttpBlobProvider;
 import org.nuxeo.runtime.api.Framework;
 
 /**
- * 
+ *
  * @since 8.1
  */
 @Operation(id = CreateBlobOp.ID, category = Constants.CAT_SERVICES, label = "HTTP BlobProvider: Create Blob", description = "")
 public class CreateBlobOp {
-    
+
     public static final String ID = "HTTPBlobProvider.CreateBlob";
 
     @Context
@@ -73,10 +73,10 @@ public class CreateBlobOp {
 
     @Param(name = "save", required = false)
     boolean save = false;
-    
+
     @OperationMethod
     public Blob run(String url) throws IOException {
-        
+
         BlobInfo newInfo = new BlobInfo();
         newInfo.key = url;
         newInfo.mimeType = mimeType;
@@ -84,23 +84,23 @@ public class CreateBlobOp {
         newInfo.length = fileSize;
         newInfo.encoding = encoding;
         newInfo.digest = digest;
-        
+
         if(StringUtils.isBlank(provider)) {
             provider = HttpBlobProvider.DEFAULT_PROVIDER;
         }
-                
+
         BlobManager blobManager = Framework.getService(BlobManager.class);
         HttpBlobProvider bp = (HttpBlobProvider) blobManager.getBlobProvider(provider);
         Blob blob = bp.createBlob(newInfo);
-        
+
         return blob;
     }
-    
+
     @OperationMethod
     public DocumentModel run(DocumentModel input) throws IOException {
         String url = (String) input.getPropertyValue(urlXPath);
         Blob blob = run(url);
-        
+
         if(StringUtils.isBlank(blobXPath)) {
             blobXPath = "file:content";
         }
@@ -108,7 +108,7 @@ public class CreateBlobOp {
         if(save) {
             input = session.saveDocument(input);
         }
-        
+
         return input;
     }
 

@@ -14,6 +14,7 @@
  * Contributors:
  *     Michael Vachette
  *     Thibaud Arguillere
+ *     Stephane Lacoin
  */
 package org.nuxeo.http.blobprovider;
 
@@ -35,7 +36,7 @@ import org.nuxeo.ecm.core.blob.BlobManager;
 import org.nuxeo.ecm.core.blob.BlobProvider;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
 import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
-import org.nuxeo.ecm.core.event.EventService;
+import org.nuxeo.ecm.core.test.TransactionalFeature;
 import org.nuxeo.ecm.core.test.annotations.Granularity;
 import org.nuxeo.ecm.core.test.annotations.RepositoryConfig;
 import org.nuxeo.http.blobprovider.operations.CreateBlobOp;
@@ -44,8 +45,6 @@ import org.nuxeo.runtime.test.runner.Deploy;
 import org.nuxeo.runtime.test.runner.Features;
 import org.nuxeo.runtime.test.runner.FeaturesRunner;
 import org.nuxeo.runtime.test.runner.LocalDeploy;
-import org.nuxeo.runtime.transaction.TransactionHelper;
-
 import javax.inject.Inject;
 
 import java.io.File;
@@ -54,8 +53,8 @@ import java.io.Serializable;
 @RunWith(FeaturesRunner.class)
 @Features({ AutomationFeature.class, SimpleFeatureCustom.class })
 @RepositoryConfig(cleanup = Granularity.METHOD)
-@Deploy({ "org.nuxeo.ecm.platform.commandline.executor", "org.nuxeo.ecm.platform.video.core",
-        "org.nuxeo.ecm.platform.video.convert", "org.nuxeo.ecm.platform.picture.core",
+@Deploy({ /*"org.nuxeo.ecm.platform.commandline.executor", "org.nuxeo.ecm.platform.video.core",
+        "org.nuxeo.ecm.platform.video.convert", "org.nuxeo.ecm.platform.picture.core",*/
         "org.nuxeo.http.blobprovider.nuxeo-http-blobprovider-core" })
 @LocalDeploy({ "nuxeo-http-blobprovider-test:http-blobprovider-test.xml" })
 public class TestService {
@@ -66,13 +65,13 @@ public class TestService {
 
     // Checking such distant file may not be reliable (file may move etc.
     // We check the URL and Assume.assumeTrue() that it can be reached.
-    public static final String FILE_NO_AUTH_URL = "https://doc.nuxeo.com/download/attachments/8684602/Nuxeo_IDE_documentation.pdf?api=v2";
+    public static final String FILE_NO_AUTH_URL = "https://stlab.adobe.com/wiki/images/d/d3/Test.pdf";
 
     public static final String FILE_NO_AUTH_MIMETYPE = "application/pdf";
 
-    public static final String FILE_NO_AUTH_FILENAME = "Nuxeo_IDE_documentation.pdf";
+    public static final String FILE_NO_AUTH_FILENAME = "Test.pdf";
 
-    public static final String FILE_NO_AUTH_FULLTEXT_TO_SEARCH = "installing nuxeo ide";
+    public static final String FILE_NO_AUTH_FULLTEXT_TO_SEARCH = "test PDF document";
 
     @Inject
     CoreSession session;
@@ -107,6 +106,9 @@ public class TestService {
 
     }
 
+    @Inject
+    TransactionalFeature txFeature;
+
     protected DocumentModel commitWaitAndTest(HttpBlobProvider blopProvider, DocumentModel doc, Long fileSize,
             String fullTextToSearch) throws Exception {
 
@@ -115,12 +117,10 @@ public class TestService {
         }
 
         // Make sure it can be found later
-        TransactionHelper.commitOrRollbackTransaction();
-        TransactionHelper.startTransaction();
+        txFeature.nextTransaction();
 
-        // Wait for async. worker (full text index) to finish their job
-        Thread.sleep(500);
-        Framework.getService(EventService.class).waitForAsyncCompletion();
+        Blob blob2 = (Blob) doc.getPropertyValue("file:content");
+        Blob downloaded2 = blopProvider.downloadFile((ManagedBlob) blob2);
 
         String nxql = "SELECT * FROM Document WHERE ecm:fulltext = '" + fullTextToSearch + "'";
         DocumentModelList docs = session.query(nxql);

@@ -33,7 +33,7 @@ import org.nuxeo.runtime.test.runner.SimpleFeature;
  * <p>
  * The testconf.conf file is ignored in .gitignore. So, to test with your custom URLs and authentication (Basic only as
  * of "today", April, 2016), you must have this file
- * 
+ *
  * @since 8.1
  */
 public class SimpleFeatureCustom extends SimpleFeature {
@@ -99,12 +99,19 @@ public class SimpleFeatureCustom extends SimpleFeature {
         Properties p = System.getProperties();
         localTestConfigurationOk = localProperties != null;
         if (localTestConfigurationOk) {
+        	String a = (String) localProperties.get(HttpBlobProvider.KEY_ORIGIN);
+        	String b = (String) p.get(HttpBlobProvider.KEY_ORIGIN);
+
             p.put(HttpBlobProvider.KEY_ORIGIN, localProperties.get(HttpBlobProvider.KEY_ORIGIN));
             p.put(HttpBlobProvider.KEY_AUTHENTICATION_TYPE,
                     localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_TYPE));
             p.put(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN,
                     localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN));
             p.put(HttpBlobProvider.KEY_AUTHENTICATION_PWD, localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_PWD));
+
+        	String c = (String) localProperties.get(HttpBlobProvider.KEY_ORIGIN);
+        	String d = (String) p.get(HttpBlobProvider.KEY_ORIGIN);
+        	String e = "";
         }
     }
 
