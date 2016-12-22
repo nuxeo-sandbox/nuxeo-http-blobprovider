@@ -35,7 +35,7 @@ import org.nuxeo.ecm.core.blob.BlobManager;
 import org.nuxeo.ecm.core.blob.BlobProvider;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
 import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
-import org.nuxeo.ecm.core.event.EventService;
+import org.nuxeo.ecm.core.test.TransactionalFeature;
 import org.nuxeo.ecm.core.test.annotations.Granularity;
 import org.nuxeo.ecm.core.test.annotations.RepositoryConfig;
 import org.nuxeo.http.blobprovider.operations.CreateBlobOp;
@@ -44,8 +44,6 @@ import org.nuxeo.runtime.test.runner.Deploy;
 import org.nuxeo.runtime.test.runner.Features;
 import org.nuxeo.runtime.test.runner.FeaturesRunner;
 import org.nuxeo.runtime.test.runner.LocalDeploy;
-import org.nuxeo.runtime.transaction.TransactionHelper;
-
 import javax.inject.Inject;
 
 import java.io.File;
@@ -107,6 +105,9 @@ public class TestService {
 
     }
 
+    @Inject
+    TransactionalFeature txFeature;
+
     protected DocumentModel commitWaitAndTest(HttpBlobProvider blopProvider, DocumentModel doc, Long fileSize,
             String fullTextToSearch) throws Exception {
 
@@ -115,12 +116,8 @@ public class TestService {
         }
 
         // Make sure it can be found later
-        TransactionHelper.commitOrRollbackTransaction();
-        TransactionHelper.startTransaction();
+        txFeature.nextTransaction();
 
-        // Wait for async. worker (full text index) to finish their job
-        Thread.sleep(500);
-        Framework.getService(EventService.class).waitForAsyncCompletion();
 
         String nxql = "SELECT * FROM Document WHERE ecm:fulltext = '" + fullTextToSearch + "'";
         DocumentModelList docs = session.query(nxql);
