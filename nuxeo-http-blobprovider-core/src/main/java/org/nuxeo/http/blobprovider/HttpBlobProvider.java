@@ -32,7 +32,7 @@ import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.api.Blobs;
 import org.nuxeo.ecm.core.api.NuxeoException;
 import org.nuxeo.ecm.core.blob.AbstractBlobProvider;
-import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
+import org.nuxeo.ecm.core.blob.BlobInfo;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
 import org.nuxeo.ecm.core.blob.SimpleManagedBlob;
 import org.nuxeo.ecm.core.model.Document;
@@ -477,7 +477,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 	 * This class does not support writing a blob and always throws an exception
 	 */
 	@Override
-	public String writeBlob(Blob blob, Document doc) throws IOException {
+	public String writeBlob(Blob blob) throws IOException {
 		throw new UnsupportedOperationException("Writing a blob is not supported");
 	}
 

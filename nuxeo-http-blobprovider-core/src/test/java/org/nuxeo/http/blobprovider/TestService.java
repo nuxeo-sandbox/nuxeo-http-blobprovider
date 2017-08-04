@@ -32,10 +32,10 @@ import org.nuxeo.ecm.core.api.Blob;
 import org.nuxeo.ecm.core.api.CoreSession;
 import org.nuxeo.ecm.core.api.DocumentModel;
 import org.nuxeo.ecm.core.api.DocumentModelList;
+import org.nuxeo.ecm.core.blob.BlobInfo;
 import org.nuxeo.ecm.core.blob.BlobManager;
 import org.nuxeo.ecm.core.blob.BlobProvider;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
-import org.nuxeo.ecm.core.blob.BlobManager.BlobInfo;
 import org.nuxeo.ecm.core.test.TransactionalFeature;
 import org.nuxeo.ecm.core.test.annotations.Granularity;
 import org.nuxeo.ecm.core.test.annotations.RepositoryConfig;
@@ -65,13 +65,13 @@ public class TestService {
 
     // Checking such distant file may not be reliable (file may move etc.
     // We check the URL and Assume.assumeTrue() that it can be reached.
-    public static final String FILE_NO_AUTH_URL = "https://stlab.adobe.com/wiki/images/d/d3/Test.pdf";
+    public static final String FILE_NO_AUTH_URL = "https://www.irs.gov/pub/irs-pdf/fw9.pdf";
 
     public static final String FILE_NO_AUTH_MIMETYPE = "application/pdf";
 
-    public static final String FILE_NO_AUTH_FILENAME = "Test.pdf";
+    public static final String FILE_NO_AUTH_FILENAME = "fw9.pdf";
 
-    public static final String FILE_NO_AUTH_FULLTEXT_TO_SEARCH = "test PDF document";
+    public static final String FILE_NO_AUTH_FULLTEXT_TO_SEARCH = "Taxpayer";
 
     @Inject
     CoreSession session;
@@ -112,7 +112,7 @@ public class TestService {
     protected DocumentModel commitWaitAndTest(HttpBlobProvider blopProvider, DocumentModel doc, Long fileSize,
             String fullTextToSearch) throws Exception {
 
-        if (blopProvider == null) {
+        /*if (blopProvider == null) {
             blopProvider = getProvider(null);
         }
 
@@ -136,7 +136,7 @@ public class TestService {
         assertTrue(f.exists());
         if (fileSize > 0) {
             assertEquals(fileSize.longValue(), f.length());
-        }
+        }*/
 
         return doc;
     }
