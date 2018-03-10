@@ -21,15 +21,15 @@
 				or set to "none" if there is no authentication -->
 			<property name="authenticationType">${http.blobprovider.auth.type:=}</property>
 			<!-- For Basic authentication, the user and password -->
-      <!-- 
+      
 			<property name="login">${http.blobprovider.auth.login:=}</property>
 			<property name="password">${http.blobprovider.auth.password:=}
 			</property>
-      -->
-      
+      <!--
       <property name="login">Administrator</property>
       <property name="password">Nuxeo2015
       </property>
+      -->
       
       
 			<!-- Add any extra headers required by the server. They must be hard-coded 
