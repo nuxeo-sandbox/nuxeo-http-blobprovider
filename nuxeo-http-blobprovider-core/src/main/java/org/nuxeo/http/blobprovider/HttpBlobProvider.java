@@ -17,12 +17,11 @@
  */
 package org.nuxeo.http.blobprovider;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,7 +34,6 @@ import org.nuxeo.ecm.core.blob.AbstractBlobProvider;
 import org.nuxeo.ecm.core.blob.BlobInfo;
 import org.nuxeo.ecm.core.blob.ManagedBlob;
 import org.nuxeo.ecm.core.blob.SimpleManagedBlob;
-import org.nuxeo.ecm.core.model.Document;
 import org.nuxeo.runtime.api.Framework;
 import org.nuxeo.runtime.trackers.files.FileEventTracker;
 
@@ -47,6 +45,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -109,7 +108,7 @@ import java.util.Map.Entry;
 public class HttpBlobProvider extends AbstractBlobProvider {
 
 	@SuppressWarnings("unused")
-	private static final Log log = LogFactory.getLog(HttpBlobProvider.class);
+	private static final Logger log = LogManager.getLogger(HttpBlobProvider.class);
 
 	// <-------------------- Configuration Parameters -------------------->
 	// Names (keys) of the default parameters, as used in the default xml
@@ -243,7 +242,7 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 			authenticationType = AUTH_BASIC;
 
 			String authString = authenticationLogin + ":" + authenticationPwd;
-			basicAuthentication = "Basic " + new String(Base64.encodeBase64(authString.getBytes()));
+			basicAuthentication = "Basic " + new String(Base64.getEncoder().encode(authString.getBytes()));
 		}
 
 		moreHeaders = new HashMap<String, String>();
@@ -319,6 +318,8 @@ public class HttpBlobProvider extends AbstractBlobProvider {
 			// . . . Other cases . . .
 			}
 		}
+		
+		connection.setRequestProperty("Accept", "*");
 
 		if (moreHeaders.size() > 0) {
 			for (Entry<String, String> entry : moreHeaders.entrySet()) {

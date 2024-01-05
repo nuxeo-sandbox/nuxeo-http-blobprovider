@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<component name="org.nuxeo.httpblobprovider.blobmanagerconfig.test"
+<component name="org.nuxeo.httpblobprovider.test.blobprovider"
 	version="1.0">
 	<extension target="org.nuxeo.ecm.core.blob.BlobManager"
 		point="configuration">

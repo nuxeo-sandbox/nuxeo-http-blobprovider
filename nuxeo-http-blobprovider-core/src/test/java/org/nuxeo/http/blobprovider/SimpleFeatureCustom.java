@@ -112,6 +112,11 @@ public class SimpleFeatureCustom extends SimpleFeature {
         	String c = (String) localProperties.get(HttpBlobProvider.KEY_ORIGIN);
         	String d = (String) p.get(HttpBlobProvider.KEY_ORIGIN);
         	String e = "";
+        	
+        	System.out.println("=============================================");
+            System.out.println("nuxeo.vcs.fulltext.disabled= false, etc.");
+            p.put("nuxeo.vcs.fulltext.disabled", "false");
+            p.put("nuxeo.vcs.fulltext.search.disabled", "false");
         }
     }
 

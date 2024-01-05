@@ -3,7 +3,8 @@
   <parent>
     <groupId>org.nuxeo.http.blobprovider</groupId>
     <artifactId>nuxeo-http-blobprovider-parent</artifactId>
-    <version>9.2-SNAPSHOT</version>
+    <version>2023.0.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
   </parent>
 
   <artifactId>nuxeo-http-blobprovider-package</artifactId>
@@ -15,11 +16,6 @@
     <dependency>
       <groupId>org.nuxeo.ecm.distribution</groupId>
       <artifactId>nuxeo-nxr-server</artifactId>
-      <type>pom</type>
-    </dependency>
-    <dependency>
-      <groupId>org.nuxeo.ecm.distribution</groupId>
-      <artifactId>nuxeo-nxr-server</artifactId>
       <type>zip</type>
       <scope>provided</scope>
     </dependency>
@@ -28,6 +24,7 @@
     <dependency>
       <groupId>org.nuxeo.http.blobprovider</groupId>
       <artifactId>nuxeo-http-blobprovider-core</artifactId>
+      <version>${project.version}</version>
     </dependency>
   </dependencies>
 
@@ -44,5 +41,6 @@
       </plugin>
     </plugins>
   </build>
+
 
 </project>

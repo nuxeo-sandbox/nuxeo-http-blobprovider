@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<component name="org.nuxeo.httpblobprovider.repository"
+	version="1.0">
+	<extension target="org.nuxeo.ecm.core.storage.sql.RepositoryService"
+    point="repository">
+    <repository name="test" label="label.default.repository">
+      <pool minPoolSize="0" maxPoolSize="20"
+        blockingTimeoutMillis="100" />
+      <noDDL>false</noDDL>
+      <ddlMode>execute</ddlMode>
+      <aclOptimizations enabled="true" readAclMaxSize="0"/>
+      <pathOptimizations enabled="true"/>
+      <idType>varchar</idType>
+      <changeTokenEnabled>true</changeTokenEnabled>
+      <indexing>
+        <!-- for H2 -->
+        <fulltext disabled="false"
+                  storedInBlob="false"
+                  searchDisabled="false">
+          <index name="default">
+            <!-- all props implied -->
+          </index>
+        </fulltext>
+      </indexing>
+      <usersSeparator key="," />
+    </repository>
+  </extension>
+
+</component>
