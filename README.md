@@ -1,17 +1,12 @@
 # nuxeo-http-blobprovider
 
-QA build status: ![Build Status](https://qa.nuxeo.org/jenkins/buildStatus/icon?job=Sandbox/sandbox_nuxeo-http-blobprovider-master)
-
 This plug-in provides a [`BlobProvider`](https://doc.nuxeo.com/x/fYYZAQ) class allowing to handle a remote binary, referenced via its URL. The  original binary is not stored in the default BinaryStore of Nuxeo (typically, the File System), it stays on its server. Still, the default features apply: Full text extraction, image metadata, video transcoding, ... (and the result of these computation are hold by Nuxeo: Thumbnail, images of the storyboard, picture conversions, ...).
 
 When the [download service](https://doc.nuxeo.com/display/NXDOC/File+Storage#FileStorage-DownloadService) is involved (a user clicking a "Download" button for example), the blob is read on its remote server.
 
-As of "today" (April 2016), the plug-in handles urls requiring no authentication or basic authentication
+⚠️ **This is an example** ⚠️ The plug-in handles urls requiring no authentication or basic authentication
 
 To create a blob using this provider, you will use the [`HTTP BlobProvider: Create Blob`](#creating-a-blob-handled)by-the-provider) operation, and pass at least a mime-type and a fileName (if not passed, the plug-in will try to guess the values by sending a `HEAD` request)
-
-### Quality Assurance
-[QA Last Build Page](http://qa.nuxeo.org/jenkins/job/Sandbox/job/sandbox_nuxeo-http-blobprovider-master/lastBuild/org.nuxeo.http.blobprovider$nuxeo-http-blobprovider-mp/) of the Nuxeo Package, to get the .zip package and install it on your server (no need to build it).
 
 # Configuration
 As any `BlobProvider`, the HTTP BlobProvider is configured via an _extension point_. This lets you configure different providers (each one with a unique name), handling different servers, and different authentications.
@@ -221,8 +216,10 @@ Assuming [maven](http://maven.apache.org/) (3.2.5) is installed on your system, 
 
   ```
   cd /path/to/nuxeo-http-blobprovider
-  mvn clean install
+  mvn clean install -DskipTests=true
   ```
+
+To run with unit testing, please see the JavaDoc at `org.nuxeo.http.blobprovider.SimpleFeatureCustom` for exaplanation on how to set your environment for testing.
 
 
 ## License
