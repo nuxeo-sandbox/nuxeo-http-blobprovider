@@ -23,20 +23,50 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
+import org.apache.commons.lang3.StringUtils;
 import org.nuxeo.common.utils.FileUtils;
 import org.nuxeo.runtime.test.runner.FeaturesRunner;
+import org.nuxeo.runtime.test.runner.RunnerFeature;
 import org.nuxeo.runtime.test.runner.SimpleFeature;
 
 /**
- * This class allows to setup the http blobprovider properties using a file stored locally for the tests, because it may
- * use loginb/pwd that can't be hard coded on GitHub
+ * This class allows to setup the http blobprovider properties using a file
+ * stored locally for the tests
  * <p>
- * The testconf.conf file is ignored in .gitignore. So, to test with your custom URLs and authentication (Basic only as
- * of "today", April, 2016), you must have this file
+ * The testconf.conf file is ignored in .gitignore. So, to test with your
+ * custom URLs and authentication (Basic only as of "today", April, 2016,
+ * and still the same in 2024), you must have this file available. The following
+ * values are expected (with an example for each)
+ * <p>
+ * <code>
+ *     http.blobprovider.origin=https://your.test.server.your.company.com
+ *     http.blobprovider.auth.type=Basic
+ * 
+ *     AUTH_FILE_URL=https://your.test.server.your.company.com/nuxeo/nxfile/default/edf6f643-3756-4179-8915-2df223cec0a2/file:content
+ *     AUTH_FILE_MIME_TYPE=image/jpeg
+ *     AUTH_FILE_FILE_NAME=cold-snow-landscape-259522.jpeg
+ *     AUTH_FILE_SIZE=3801662
+ *     AUTH_FILE_FULL_TEXT_SEARCH=mountain outdoors nature person
+ * </code>
+ * <p>
+ * That said, for authentication to the distant site, we don't store credentials
+ * in this file (in case someone makes a mistake and changes .gitignore for example).
+ * So, in order for the tests to work, we expect the following environment
+ * variables:
+ * <ul>
+ * <li>NX_HTTP_BLOBPROVIDER_TEST_BASIC_LOGIN</li>
+ * <li>NX_HTTP_BLOBPROVIDER_TEST_BASIC_PWD</li>
+ * </ul>
+ * These must be set and will fill the http.blobprovider.auth.login and http.blobprovider.auth.password
+ * parameters expected by the plugin.
  *
  * @since 8.1
  */
-public class SimpleFeatureCustom extends SimpleFeature {
+public class SimpleFeatureCustom implements RunnerFeature {
+
+    public static final String ENV_VAR_TEST_KEY_LOGIN = "NX_HTTP_BLOBPROVIDER_TEST_BASIC_LOGIN";
+
+    public static final String ENV_VAR_TEST_KEY_PWD = "NX_HTTP_BLOBPROVIDER_TEST_BASIC_PWD";
 
     public static final String TEST_CONF_FILE = "testconf.conf";
 
@@ -54,7 +84,7 @@ public class SimpleFeatureCustom extends SimpleFeature {
     public static final String AUTH_FILE_FULL_TEXT_SEARCH = "AUTH_FILE_FULL_TEXT_SEARCH";
 
     // These are the properties that are tested. You must declare/use the same in your testconf.conf file
-    protected static boolean localTestConfigurationOk = false;
+    protected static boolean testConfigurationOk = false;
 
     protected static Properties localProperties = null;
 
@@ -67,8 +97,8 @@ public class SimpleFeatureCustom extends SimpleFeature {
         return null;
     }
 
-    public static boolean hasLocalTestConfiguration() {
-        return localTestConfigurationOk;
+    public static boolean hasValidTestConfiguration() {
+        return testConfigurationOk;
     }
 
     @Override
@@ -96,28 +126,53 @@ public class SimpleFeatureCustom extends SimpleFeature {
             }
         }
 
-        Properties p = System.getProperties();
-        localTestConfigurationOk = localProperties != null;
-        if (localTestConfigurationOk) {
-        	String a = (String) localProperties.get(HttpBlobProvider.KEY_ORIGIN);
-        	String b = (String) p.get(HttpBlobProvider.KEY_ORIGIN);
-
-            p.put(HttpBlobProvider.KEY_ORIGIN, localProperties.get(HttpBlobProvider.KEY_ORIGIN));
-            p.put(HttpBlobProvider.KEY_AUTHENTICATION_TYPE,
-                    localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_TYPE));
-            p.put(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN,
-                    localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN));
-            p.put(HttpBlobProvider.KEY_AUTHENTICATION_PWD, localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_PWD));
-
-        	String c = (String) localProperties.get(HttpBlobProvider.KEY_ORIGIN);
-        	String d = (String) p.get(HttpBlobProvider.KEY_ORIGIN);
-        	String e = "";
-        	
-        	System.out.println("=============================================");
-            System.out.println("nuxeo.vcs.fulltext.disabled= false, etc.");
-            p.put("nuxeo.vcs.fulltext.disabled", "false");
-            p.put("nuxeo.vcs.fulltext.search.disabled", "false");
+        if(!addEnvironmentVariable(ENV_VAR_TEST_KEY_LOGIN)) {
+            System.out.println("No login defined in " + ENV_VAR_TEST_KEY_LOGIN + " => No test with authentication.");
+            return;
         }
+        if(!addEnvironmentVariable(ENV_VAR_TEST_KEY_PWD)) {
+            System.out.println("No login defined in " + ENV_VAR_TEST_KEY_PWD + " => No test with authentication.");
+            return;
+        }
+
+        if (localProperties != null) {
+
+            Properties systemProps = System.getProperties();
+
+            systemProps.put(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN, localProperties.get(ENV_VAR_TEST_KEY_LOGIN));
+            systemProps.put(HttpBlobProvider.KEY_AUTHENTICATION_PWD, localProperties.get(ENV_VAR_TEST_KEY_PWD));
+
+            systemProps.put(HttpBlobProvider.KEY_ORIGIN, localProperties.get(HttpBlobProvider.KEY_ORIGIN));
+            systemProps.put(HttpBlobProvider.KEY_AUTHENTICATION_TYPE,
+                    localProperties.get(HttpBlobProvider.KEY_AUTHENTICATION_TYPE));
+
+            String type = systemProps.getProperty(HttpBlobProvider.KEY_AUTHENTICATION_TYPE);
+            String login = systemProps.getProperty(HttpBlobProvider.KEY_AUTHENTICATION_LOGIN);
+            String pwd = systemProps.getProperty(HttpBlobProvider.KEY_AUTHENTICATION_PWD);
+            String origin = systemProps.getProperty(HttpBlobProvider.KEY_ORIGIN);
+
+            if (StringUtils.isNoneBlank(type, login, pwd, origin)) {
+                testConfigurationOk = true;
+            } else {
+                testConfigurationOk = false;
+                System.out.println(String.format(
+                        "**TEST WARNING**\nMissing configuration parameter in authType (%s), login (%s), pwd (%s) and/or origin (%s)",
+                        type, login, pwd, origin));
+            }
+        }
+    }
+
+    protected boolean addEnvironmentVariable(String key) {
+        String value = System.getenv(key);
+        if (value != null) {
+            if (localProperties == null) {
+                localProperties = new Properties();
+            }
+            localProperties.put(key, value);
+            return true;
+        }
+        
+        return false;
     }
 
     @Override

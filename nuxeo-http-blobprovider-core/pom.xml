@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.nuxeo.http.blobprovider</groupId>
     <artifactId>nuxeo-http-blobprovider-parent</artifactId>
-    <version>2023.0.0-SNAPSHOT</version>
+    <version>2023.0.1-SNAPSHOT</version>
   </parent>
   <artifactId>nuxeo-http-blobprovider-core</artifactId>
   <name>Nuxeo http blobprovider core</name>

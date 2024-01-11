@@ -2,7 +2,7 @@
 <package type="addon" name="nuxeo-http-blobprovider" version="@VERSION@">
   <title>Nuxeo http blobprovider</title>
   <description>
-    <p>Put here an HTML description of your Nuxeo Package.</p>
+    <p>An example of a BlobProvider getting a blob from an external website, via HTTP.</p>
   </description>
   <home-page>https://github.com/nuxeo-sandbox/nuxeo-http-blobprovider</home-page>
   <vendor>Nuxeo</vendor>

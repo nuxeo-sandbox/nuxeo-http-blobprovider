@@ -60,6 +60,11 @@ import java.io.Serializable;
 @Deploy("nuxeo-http-blobprovider-test:http-blobprovider-test.xml")
 //@Deploy("nuxeo-http-blobprovider-test:activate-fulltext.xml")
 @Deploy("org.nuxeo.http.blobprovider.nuxeo-http-blobprovider-core")
+
+/*
+ * A lot of Unit tests are @Ignore because we did not find a way to activate full text index
+ * in the unit test (disabled by default when using H2).
+ */
 public class TestService {
 
     // See test/resources/http-blobprovider-test.xml
@@ -201,7 +206,7 @@ public class TestService {
     @Ignore
     public void testHttpBlobProvider_withAuthentication() throws Exception {
 
-        Assume.assumeTrue("No local configuration file, no test", SimpleFeatureCustom.hasLocalTestConfiguration());
+        Assume.assumeTrue("No correct test configuration, no test", SimpleFeatureCustom.hasValidTestConfiguration());
 
         String url = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_URL);
         String mimeType = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_MIME_TYPE);
@@ -248,7 +253,7 @@ public class TestService {
     @Ignore
     public void testGuessInfo_authenticated() throws Exception {
 
-        Assume.assumeTrue("No local configuration file, no test", SimpleFeatureCustom.hasLocalTestConfiguration());
+        Assume.assumeTrue("No correct test configuration, no test", SimpleFeatureCustom.hasValidTestConfiguration());
 
         String url = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_URL);
         String mimeType = SimpleFeatureCustom.getLocalProperty(SimpleFeatureCustom.CONF_KEY_AUTH_FILE_MIME_TYPE);
