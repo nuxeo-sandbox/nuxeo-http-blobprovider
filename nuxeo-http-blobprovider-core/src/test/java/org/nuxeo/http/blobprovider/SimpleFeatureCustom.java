@@ -27,7 +27,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.nuxeo.common.utils.FileUtils;
 import org.nuxeo.runtime.test.runner.FeaturesRunner;
 import org.nuxeo.runtime.test.runner.RunnerFeature;
-import org.nuxeo.runtime.test.runner.SimpleFeature;
 
 /**
  * This class allows to setup the http blobprovider properties using a file
